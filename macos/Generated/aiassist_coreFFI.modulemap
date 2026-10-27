@@ -1,0 +1,4 @@
+module aiassist_coreFFI {
+    header "aiassist_coreFFI.h"
+    export *
+}

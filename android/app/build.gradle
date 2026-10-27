@@ -1,0 +1,58 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+android {
+    namespace = "vn.aiassistant"
+    compileSdk = 35
+    defaultConfig {
+        applicationId = "vn.aiassistant"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+    ndkVersion = "27.0.12077973"
+    buildFeatures { compose = true }
+    composeOptions { kotlinCompilerExtensionVersion = "2.0.0" }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
+        }
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.compose.material3:material3:1.2.1")
+    implementation("androidx.compose.ui:ui:1.6.8")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    // UniFFI Kotlin dùng JNA để nạp libaiassist_core.so.
+    implementation("net.java.dev.jna:jna:5.14.0")
+}
+
+// Build lõi Rust cho các ABI Android rồi chép .so vào jniLibs.
+// Chạy trong Docker (cargo-ndk có sẵn): gradle assembleDebug là đủ.
+def rustAbis = [
+    "arm64-v8a"    : "aarch64-linux-android",
+    "armeabi-v7a"  : "armv7-linux-androideabi",
+    "x86_64"       : "x86_64-linux-android",
+]
+tasks.register("buildRust", Exec) {
+    def out = layout.projectDirectory.dir("src/main/jniLibs").asFile.absolutePath
+    def cmds = rustAbis.collect { abi, triple ->
+        "cargo ndk -t $abi -o $out build -p aiassist-core --lib"
+    }.join(" && ")
+    commandLine("bash", "-c", cmds)
+    workingDir = rootDir.parentFile
+}
+tasks.named("preBuild") { dependsOn("buildRust") }
