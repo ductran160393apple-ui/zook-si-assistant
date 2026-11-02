@@ -57,10 +57,11 @@ fn is_ip_host(host: &str) -> bool {
     host.parse::<std::net::IpAddr>().is_ok()
 }
 
-/// Phân loại một URL thô.
-pub fn classify_link(raw: &str) -> LinkKind {
+/// Phân loại một URL thô. `lang` chọn ngôn ngữ chuỗi lý do kèm theo.
+pub fn classify_link(raw: &str, lang: crate::AiLang) -> LinkKind {
     let Some(host) = host_of(raw) else { return LinkKind::Normal };
     let host_nodot: String = host.strip_prefix("www.").unwrap_or(&host).to_string();
+    let en = lang == crate::AiLang::En;
 
     // Giả mạo thương hiệu: host chứa token nhưng không phải domain chính thức.
     for brand in crate::rules::BRANDS {
@@ -70,9 +71,12 @@ pub fn classify_link(raw: &str) -> LinkKind {
         }
         let official = brand.official.iter().any(|o| host_nodot == *o || host_nodot.ends_with(&format!(".{o}")));
         if !official {
-            return LinkKind::BrandImpersonation(format!(
-                "Link giả mạo {token} ({host})"
-            ));
+            let msg = if en {
+                format!("{token} impersonation link ({host})")
+            } else {
+                format!("Link giả mạo {token} ({host})")
+            };
+            return LinkKind::BrandImpersonation(msg);
         }
     }
 
@@ -83,11 +87,13 @@ pub fn classify_link(raw: &str) -> LinkKind {
         crate::rules::RISKY_TLDS.iter().any(|t| host_nodot.ends_with(t));
     if short || risky_tld || is_ip_host(&host) || host.starts_with("xn--") || host.contains(".xn--") {
         let why = if short {
-            "link rút gọn"
+            if en { "shortened link" } else { "link rút gọn" }
         } else if is_ip_host(&host) {
-            "link dạng địa chỉ IP"
+            if en { "IP-address link" } else { "link dạng địa chỉ IP" }
         } else if risky_tld {
-            "đuôi tên miền rủi ro"
+            if en { "risky TLD" } else { "đuôi tên miền rủi ro" }
+        } else if en {
+            "encoded (punycode) domain"
         } else {
             "tên miền mã hóa (punycode)"
         };
@@ -131,17 +137,45 @@ mod tests {
     #[test]
     fn brand_impersonation() {
         assert!(matches!(
-            classify_link("https://vietcombank-xacthuc.top/login"),
+            classify_link("https://vietcombank-xacthuc.top/login", crate::AiLang::Vi),
             LinkKind::BrandImpersonation(_)
         ));
-        assert!(matches!(classify_link("https://vietcombank.com.vn/ib"), LinkKind::Normal));
+        assert!(matches!(
+            classify_link("https://vietcombank.com.vn/ib", crate::AiLang::Vi),
+            LinkKind::Normal
+        ));
     }
 
     #[test]
     fn shortener_and_ip() {
-        assert!(matches!(classify_link("http://bit.ly/abc"), LinkKind::Suspicious(_)));
-        assert!(matches!(classify_link("http://192.168.1.1/x"), LinkKind::Suspicious(_)));
-        assert!(matches!(classify_link("https://example.vn/tin"), LinkKind::Normal));
+        assert!(matches!(
+            classify_link("http://bit.ly/abc", crate::AiLang::Vi),
+            LinkKind::Suspicious(_)
+        ));
+        assert!(matches!(
+            classify_link("http://192.168.1.1/x", crate::AiLang::Vi),
+            LinkKind::Suspicious(_)
+        ));
+        assert!(matches!(
+            classify_link("https://example.vn/tin", crate::AiLang::Vi),
+            LinkKind::Normal
+        ));
+    }
+
+    #[test]
+    fn link_reasons_follow_lang() {
+        let LinkKind::BrandImpersonation(vi) =
+            classify_link("https://vietcombank-xacthuc.top/login", crate::AiLang::Vi)
+        else {
+            panic!("phải là giả mạo");
+        };
+        assert!(vi.contains("giả mạo"), "{vi}");
+        let LinkKind::BrandImpersonation(en) =
+            classify_link("https://vietcombank-xacthuc.top/login", crate::AiLang::En)
+        else {
+            panic!("phải là giả mạo");
+        };
+        assert!(en.contains("impersonation"), "{en}");
     }
 
     #[test]

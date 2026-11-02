@@ -12,6 +12,15 @@ pub mod store;
 
 pub use scoring::{RiskLevel, ScanContext, ScanResult};
 
+/// Ngôn ngữ trả lời/lý do (theo ngôn ngữ giao diện người dùng chọn).
+/// Mặc định Vi để tương thích hành vi cũ.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, uniffi::Enum)]
+pub enum AiLang {
+    #[default]
+    Vi,
+    En,
+}
+
 uniffi::setup_scaffolding!("aiassist_core");
 
 // ---------------------------------------------------------------------------
@@ -37,6 +46,8 @@ pub struct FfiScanFlags {
     pub learned_json: String,
     /// JSON Blacklists {"domains":[],"phones":[],"accounts":[]} (rỗng = trống).
     pub blacklist_json: String,
+    /// JSON kho case (CaseStore) cho RAG (rỗng = tắt RAG).
+    pub cases_json: String,
 }
 
 /// Kết quả dạng JSON cho moderate_rule khi lỗi (giữ FFI không-thất-bại).
@@ -66,9 +77,9 @@ fn parse_blacklists(json: &str) -> scoring::Blacklists {
 }
 
 /// Quét một văn bản. Lõi tự từ chối app nhạy cảm (điểm 0).
-/// Không thất bại: JSON hỏng được coi như rỗng.
+/// Không thất bại: JSON hỏng được coi như rỗng. `lang` chọn ngôn ngữ lý do.
 #[uniffi::export]
-pub fn scan_text(text: String, app_id: String, flags: FfiScanFlags) -> FfiScanResult {
+pub fn scan_text(text: String, app_id: String, flags: FfiScanFlags, lang: AiLang) -> FfiScanResult {
     let learned: learned::LearnedRuleSet = if flags.learned_json.trim().is_empty() {
         learned::LearnedRuleSet::default()
     } else {
@@ -81,6 +92,8 @@ pub fn scan_text(text: String, app_id: String, flags: FfiScanFlags) -> FfiScanRe
         bank_app_open: flags.bank_app_open,
         blacklists: parse_blacklists(&flags.blacklist_json),
         learned,
+        lang,
+        rag_cases_json: flags.cases_json,
     };
     let r = scoring::scan(&text, &ctx);
     let level = match r.level {

@@ -745,6 +745,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -760,10 +764,14 @@ internal interface UniffiLib : Library {
         
     }
 
-    fun uniffi_aiassist_core_fn_func_claude_command_args(`model`: RustBuffer.ByValue,`task`: RustBuffer.ByValue,`redacted`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_aiassist_core_fn_func_agy_command_args(`model`: RustBuffer.ByValue,`task`: RustBuffer.ByValue,`redacted`: RustBuffer.ByValue,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aiassist_core_fn_func_claude_command_args(`model`: RustBuffer.ByValue,`task`: RustBuffer.ByValue,`redacted`: RustBuffer.ByValue,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aiassist_core_fn_func_estimate_tokens(`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
+    fun uniffi_aiassist_core_fn_func_gemini_command_args(`model`: RustBuffer.ByValue,`task`: RustBuffer.ByValue,`redacted`: RustBuffer.ByValue,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aiassist_core_fn_func_is_bank_app(`appId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
     fun uniffi_aiassist_core_fn_func_is_remote_app(`appId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -778,7 +786,7 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_aiassist_core_fn_func_redact_text(`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_aiassist_core_fn_func_scan_text(`text`: RustBuffer.ByValue,`appId`: RustBuffer.ByValue,`flags`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_aiassist_core_fn_func_scan_text(`text`: RustBuffer.ByValue,`appId`: RustBuffer.ByValue,`flags`: RustBuffer.ByValue,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aiassist_core_fn_func_store_add_case(`casesJson`: RustBuffer.ByValue,`caseJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -906,9 +914,13 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_aiassist_core_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aiassist_core_checksum_func_agy_command_args(
+    ): Short
     fun uniffi_aiassist_core_checksum_func_claude_command_args(
     ): Short
     fun uniffi_aiassist_core_checksum_func_estimate_tokens(
+    ): Short
+    fun uniffi_aiassist_core_checksum_func_gemini_command_args(
     ): Short
     fun uniffi_aiassist_core_checksum_func_is_bank_app(
     ): Short
@@ -957,10 +969,16 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_aiassist_core_checksum_func_claude_command_args() != 43074.toShort()) {
+    if (lib.uniffi_aiassist_core_checksum_func_agy_command_args() != 18511.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aiassist_core_checksum_func_claude_command_args() != 19817.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aiassist_core_checksum_func_estimate_tokens() != 6262.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aiassist_core_checksum_func_gemini_command_args() != 56236.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aiassist_core_checksum_func_is_bank_app() != 37907.toShort()) {
@@ -984,7 +1002,7 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aiassist_core_checksum_func_redact_text() != 43146.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_aiassist_core_checksum_func_scan_text() != 33289.toShort()) {
+    if (lib.uniffi_aiassist_core_checksum_func_scan_text() != 15923.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aiassist_core_checksum_func_store_add_case() != 58993.toShort()) {
@@ -1005,7 +1023,7 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aiassist_core_checksum_func_task_timeout_secs() != 33690.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_aiassist_core_checksum_func_wrap_input() != 49920.toShort()) {
+    if (lib.uniffi_aiassist_core_checksum_func_wrap_input() != 47383.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1258,9 +1276,9 @@ public object FfiConverterTypeFfiAiResponse: FfiConverterRustBuffer<FfiAiRespons
 
 
 /**
- * Lệnh gọi `claude -p` cô lập (nền tảng tự thực thi tiến trình).
+ * Lệnh gọi CLI một phát (nền tảng tự thực thi tiến trình trong thư mục tạm).
  */
-data class FfiClaudeCommand (
+data class FfiCliCommand (
     var `bin`: kotlin.String, 
     var `args`: List<kotlin.String>
 ) {
@@ -1271,20 +1289,20 @@ data class FfiClaudeCommand (
 /**
  * @suppress
  */
-public object FfiConverterTypeFfiClaudeCommand: FfiConverterRustBuffer<FfiClaudeCommand> {
-    override fun read(buf: ByteBuffer): FfiClaudeCommand {
-        return FfiClaudeCommand(
+public object FfiConverterTypeFfiCliCommand: FfiConverterRustBuffer<FfiCliCommand> {
+    override fun read(buf: ByteBuffer): FfiCliCommand {
+        return FfiCliCommand(
             FfiConverterString.read(buf),
             FfiConverterSequenceString.read(buf),
         )
     }
 
-    override fun allocationSize(value: FfiClaudeCommand) = (
+    override fun allocationSize(value: FfiCliCommand) = (
             FfiConverterString.allocationSize(value.`bin`) +
             FfiConverterSequenceString.allocationSize(value.`args`)
     )
 
-    override fun write(value: FfiClaudeCommand, buf: ByteBuffer) {
+    override fun write(value: FfiCliCommand, buf: ByteBuffer) {
             FfiConverterString.write(value.`bin`, buf)
             FfiConverterSequenceString.write(value.`args`, buf)
     }
@@ -1307,7 +1325,11 @@ data class FfiMessagesCall (
     var `rawText`: kotlin.String, 
     var `priceInPerMtok`: kotlin.Double, 
     var `priceOutPerMtok`: kotlin.Double, 
-    var `backendName`: kotlin.String
+    var `backendName`: kotlin.String, 
+    /**
+     * Ngôn ngữ trả lời của AI (theo giao diện người dùng).
+     */
+    var `lang`: AiLang
 ) {
     
     companion object
@@ -1328,6 +1350,7 @@ public object FfiConverterTypeFfiMessagesCall: FfiConverterRustBuffer<FfiMessage
             FfiConverterDouble.read(buf),
             FfiConverterDouble.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterTypeAiLang.read(buf),
         )
     }
 
@@ -1340,7 +1363,8 @@ public object FfiConverterTypeFfiMessagesCall: FfiConverterRustBuffer<FfiMessage
             FfiConverterString.allocationSize(value.`rawText`) +
             FfiConverterDouble.allocationSize(value.`priceInPerMtok`) +
             FfiConverterDouble.allocationSize(value.`priceOutPerMtok`) +
-            FfiConverterString.allocationSize(value.`backendName`)
+            FfiConverterString.allocationSize(value.`backendName`) +
+            FfiConverterTypeAiLang.allocationSize(value.`lang`)
     )
 
     override fun write(value: FfiMessagesCall, buf: ByteBuffer) {
@@ -1353,6 +1377,7 @@ public object FfiConverterTypeFfiMessagesCall: FfiConverterRustBuffer<FfiMessage
             FfiConverterDouble.write(value.`priceInPerMtok`, buf)
             FfiConverterDouble.write(value.`priceOutPerMtok`, buf)
             FfiConverterString.write(value.`backendName`, buf)
+            FfiConverterTypeAiLang.write(value.`lang`, buf)
     }
 }
 
@@ -1369,7 +1394,11 @@ data class FfiScanFlags (
     /**
      * JSON Blacklists {"domains":[],"phones":[],"accounts":[]} (rỗng = trống).
      */
-    var `blacklistJson`: kotlin.String
+    var `blacklistJson`: kotlin.String, 
+    /**
+     * JSON kho case (CaseStore) cho RAG (rỗng = tắt RAG).
+     */
+    var `casesJson`: kotlin.String
 ) {
     
     companion object
@@ -1386,6 +1415,7 @@ public object FfiConverterTypeFfiScanFlags: FfiConverterRustBuffer<FfiScanFlags>
             FfiConverterBoolean.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
         )
     }
 
@@ -1394,7 +1424,8 @@ public object FfiConverterTypeFfiScanFlags: FfiConverterRustBuffer<FfiScanFlags>
             FfiConverterBoolean.allocationSize(value.`inCall`) +
             FfiConverterBoolean.allocationSize(value.`bankAppOpen`) +
             FfiConverterString.allocationSize(value.`learnedJson`) +
-            FfiConverterString.allocationSize(value.`blacklistJson`)
+            FfiConverterString.allocationSize(value.`blacklistJson`) +
+            FfiConverterString.allocationSize(value.`casesJson`)
     )
 
     override fun write(value: FfiScanFlags, buf: ByteBuffer) {
@@ -1403,6 +1434,7 @@ public object FfiConverterTypeFfiScanFlags: FfiConverterRustBuffer<FfiScanFlags>
             FfiConverterBoolean.write(value.`bankAppOpen`, buf)
             FfiConverterString.write(value.`learnedJson`, buf)
             FfiConverterString.write(value.`blacklistJson`, buf)
+            FfiConverterString.write(value.`casesJson`, buf)
     }
 }
 
@@ -1448,6 +1480,40 @@ public object FfiConverterTypeFfiScanResult: FfiConverterRustBuffer<FfiScanResul
 
 
 /**
+ * Ngôn ngữ trả lời/lý do (theo ngôn ngữ giao diện người dùng chọn).
+ * Mặc định Vi để tương thích hành vi cũ.
+ */
+
+enum class AiLang {
+    
+    VI,
+    EN;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeAiLang: FfiConverterRustBuffer<AiLang> {
+    override fun read(buf: ByteBuffer) = try {
+        AiLang.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: AiLang) = 4UL
+
+    override fun write(value: AiLang, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
  * Tác vụ AI. Tên tránh đụng `Task` của Swift (binding sinh ra cùng module).
  */
 
@@ -1456,7 +1522,11 @@ enum class AiTaskKind {
     SUMMARIZE,
     TRANSLATE,
     SOLVE,
-    ANALYZE;
+    ANALYZE,
+    /**
+     * Kiểm tra lừa đảo bằng AI: tóm tắt + kết luận + lý do (ngắn gọn).
+     */
+    SCAM_CHECK;
     companion object
 }
 
@@ -1634,13 +1704,25 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     }
 }
         /**
+         * Dựng lệnh `agy -p` một phát, JSON. `model` rỗng → CLI tự chọn.
+         */ fun `agyCommandArgs`(`model`: kotlin.String, `task`: AiTaskKind, `redacted`: kotlin.String, `lang`: AiLang): FfiCliCommand {
+            return FfiConverterTypeFfiCliCommand.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_agy_command_args(
+        FfiConverterString.lower(`model`),FfiConverterTypeAiTaskKind.lower(`task`),FfiConverterString.lower(`redacted`),FfiConverterTypeAiLang.lower(`lang`),_status)
+}
+    )
+    }
+    
+
+        /**
          * Dựng lệnh `claude -p` cô lập. Prompt đã bọc <INPUT>; nền tảng chỉ việc
          * thực thi trong thư mục tạm với timeout [`task_timeout_secs`].
-         */ fun `claudeCommandArgs`(`model`: kotlin.String, `task`: AiTaskKind, `redacted`: kotlin.String): FfiClaudeCommand {
-            return FfiConverterTypeFfiClaudeCommand.lift(
+         */ fun `claudeCommandArgs`(`model`: kotlin.String, `task`: AiTaskKind, `redacted`: kotlin.String, `lang`: AiLang): FfiCliCommand {
+            return FfiConverterTypeFfiCliCommand.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_claude_command_args(
-        FfiConverterString.lower(`model`),FfiConverterTypeAiTaskKind.lower(`task`),FfiConverterString.lower(`redacted`),_status)
+        FfiConverterString.lower(`model`),FfiConverterTypeAiTaskKind.lower(`task`),FfiConverterString.lower(`redacted`),FfiConverterTypeAiLang.lower(`lang`),_status)
 }
     )
     }
@@ -1653,6 +1735,18 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_estimate_tokens(
         FfiConverterString.lower(`text`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Dựng lệnh `gemini -p` một phát, JSON. `model` rỗng → CLI tự chọn.
+         */ fun `geminiCommandArgs`(`model`: kotlin.String, `task`: AiTaskKind, `redacted`: kotlin.String, `lang`: AiLang): FfiCliCommand {
+            return FfiConverterTypeFfiCliCommand.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_gemini_command_args(
+        FfiConverterString.lower(`model`),FfiConverterTypeAiTaskKind.lower(`task`),FfiConverterString.lower(`redacted`),FfiConverterTypeAiLang.lower(`lang`),_status)
 }
     )
     }
@@ -1750,12 +1844,12 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 
         /**
          * Quét một văn bản. Lõi tự từ chối app nhạy cảm (điểm 0).
-         * Không thất bại: JSON hỏng được coi như rỗng.
-         */ fun `scanText`(`text`: kotlin.String, `appId`: kotlin.String, `flags`: FfiScanFlags): FfiScanResult {
+         * Không thất bại: JSON hỏng được coi như rỗng. `lang` chọn ngôn ngữ lý do.
+         */ fun `scanText`(`text`: kotlin.String, `appId`: kotlin.String, `flags`: FfiScanFlags, `lang`: AiLang): FfiScanResult {
             return FfiConverterTypeFfiScanResult.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_scan_text(
-        FfiConverterString.lower(`text`),FfiConverterString.lower(`appId`),FfiConverterTypeFfiScanFlags.lower(`flags`),_status)
+        FfiConverterString.lower(`text`),FfiConverterString.lower(`appId`),FfiConverterTypeFfiScanFlags.lower(`flags`),FfiConverterTypeAiLang.lower(`lang`),_status)
 }
     )
     }
@@ -1838,7 +1932,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     
 
         /**
-         * Bọc nội dung màn hình thành dữ liệu (chống prompt injection).
+         * Bọc nội dung màn hình thành dữ liệu (tiếng Việt, tương thích cũ).
          */ fun `wrapInput`(`redacted`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->

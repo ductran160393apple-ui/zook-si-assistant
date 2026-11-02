@@ -77,6 +77,22 @@ impl CaseStore {
         Self::default()
     }
 
+    /// Truy hồi RAG: trong top `top_k` case giống query nhất (Jaccard trên
+    /// chữ chuẩn hóa, ngưỡng `min_sim`), trả (số case từng bị gán lừa đảo,
+    /// độ giống cao nhất). Chỉ case có verdict lừa đảo mới được tính phiếu.
+    pub fn retrieve_scam_votes(&self, norm_query: &str, top_k: usize, min_sim: f64) -> (u32, f64) {
+        let mut sims: Vec<f64> = self
+            .cases
+            .iter()
+            .filter(|c| c.verdict == Some(true))
+            .map(|c| jaccard(&crate::normalize::normalize(&c.text), norm_query))
+            .filter(|s| *s >= min_sim)
+            .collect();
+        sims.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+        sims.truncate(top_k);
+        (sims.len() as u32, sims.first().copied().unwrap_or(0.0))
+    }
+
     /// Gán verdict cho case khớp (app + text đã che), mới nhất trước.
     /// Trả true khi tìm thấy.
     pub fn set_verdict(&mut self, app_id: &str, redacted: &str, verdict: bool) -> bool {
@@ -169,6 +185,30 @@ mod tests {
         let s = CaseStore::from_json(r#"[{"text":"x","app":"a","score":10}]"#);
         assert_eq!(s.cases.len(), 1);
         assert_eq!(s.cases[0].app_id, "a");
+    }
+
+    #[test]
+    fn rag_votes_count_labeled_scams() {
+        let mut s = CaseStore::default();
+        let mut a = case("công an yêu cầu chuyển tiền gấp vào tài khoản an toàn nhé bạn ơi");
+        a.verdict = Some(true);
+        s.cases.push(a);
+        let mut b = case("công an yêu cầu chuyển tiền gấp vào tài khoản an toàn nhé bạn à");
+        b.verdict = Some(true);
+        s.cases.push(b);
+        let mut c = case("chúc mừng bạn đã trúng thưởng lớn hãy nhận quà ngay hôm nay");
+        c.verdict = Some(false);
+        s.cases.push(c);
+        let q = crate::normalize::normalize("công an gọi đòi chuyển tiền gấp vào tài khoản an toàn");
+        let (votes, best) = s.retrieve_scam_votes(&q, 3, 0.12);
+        assert_eq!(votes, 2, "best={best}");
+        assert!(best >= 0.12);
+        // Truy vấn xa lạ → 0 phiếu.
+        let (v2, _) = s.retrieve_scam_votes(
+            &crate::normalize::normalize("thời tiết hôm nay nắng đẹp trời trong xanh"),
+            3, 0.12,
+        );
+        assert_eq!(v2, 0);
     }
 
     #[test]

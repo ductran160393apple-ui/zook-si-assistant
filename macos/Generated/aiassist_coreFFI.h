@@ -251,14 +251,24 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_AGY_COMMAND_ARGS
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_AGY_COMMAND_ARGS
+RustBuffer uniffi_aiassist_core_fn_func_agy_command_args(RustBuffer model, RustBuffer task, RustBuffer redacted, RustBuffer lang, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_CLAUDE_COMMAND_ARGS
 #define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_CLAUDE_COMMAND_ARGS
-RustBuffer uniffi_aiassist_core_fn_func_claude_command_args(RustBuffer model, RustBuffer task, RustBuffer redacted, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_aiassist_core_fn_func_claude_command_args(RustBuffer model, RustBuffer task, RustBuffer redacted, RustBuffer lang, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_ESTIMATE_TOKENS
 #define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_ESTIMATE_TOKENS
 uint64_t uniffi_aiassist_core_fn_func_estimate_tokens(RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_GEMINI_COMMAND_ARGS
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_GEMINI_COMMAND_ARGS
+RustBuffer uniffi_aiassist_core_fn_func_gemini_command_args(RustBuffer model, RustBuffer task, RustBuffer redacted, RustBuffer lang, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_IS_BANK_APP
@@ -298,7 +308,7 @@ RustBuffer uniffi_aiassist_core_fn_func_redact_text(RustBuffer text, RustCallSta
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_SCAN_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_SCAN_TEXT
-RustBuffer uniffi_aiassist_core_fn_func_scan_text(RustBuffer text, RustBuffer app_id, RustBuffer flags, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_aiassist_core_fn_func_scan_text(RustBuffer text, RustBuffer app_id, RustBuffer flags, RustBuffer lang, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_STORE_ADD_CASE
@@ -616,6 +626,12 @@ void ffi_aiassist_core_rust_future_free_void(uint64_t handle
 void ffi_aiassist_core_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_AGY_COMMAND_ARGS
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_AGY_COMMAND_ARGS
+uint16_t uniffi_aiassist_core_checksum_func_agy_command_args(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_CLAUDE_COMMAND_ARGS
 #define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_CLAUDE_COMMAND_ARGS
 uint16_t uniffi_aiassist_core_checksum_func_claude_command_args(void
@@ -625,6 +641,12 @@ uint16_t uniffi_aiassist_core_checksum_func_claude_command_args(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_ESTIMATE_TOKENS
 #define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_ESTIMATE_TOKENS
 uint16_t uniffi_aiassist_core_checksum_func_estimate_tokens(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_GEMINI_COMMAND_ARGS
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_GEMINI_COMMAND_ARGS
+uint16_t uniffi_aiassist_core_checksum_func_gemini_command_args(void
     
 );
 #endif

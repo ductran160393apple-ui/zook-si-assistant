@@ -612,9 +612,9 @@ public func FfiConverterTypeFfiAiResponse_lower(_ value: FfiAiResponse) -> RustB
 
 
 /**
- * Lệnh gọi `claude -p` cô lập (nền tảng tự thực thi tiến trình).
+ * Lệnh gọi CLI một phát (nền tảng tự thực thi tiến trình trong thư mục tạm).
  */
-public struct FfiClaudeCommand {
+public struct FfiCliCommand {
     public var bin: String
     public var args: [String]
 
@@ -628,8 +628,8 @@ public struct FfiClaudeCommand {
 
 
 
-extension FfiClaudeCommand: Equatable, Hashable {
-    public static func ==(lhs: FfiClaudeCommand, rhs: FfiClaudeCommand) -> Bool {
+extension FfiCliCommand: Equatable, Hashable {
+    public static func ==(lhs: FfiCliCommand, rhs: FfiCliCommand) -> Bool {
         if lhs.bin != rhs.bin {
             return false
         }
@@ -649,16 +649,16 @@ extension FfiClaudeCommand: Equatable, Hashable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeFfiClaudeCommand: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiClaudeCommand {
+public struct FfiConverterTypeFfiCliCommand: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiCliCommand {
         return
-            try FfiClaudeCommand(
+            try FfiCliCommand(
                 bin: FfiConverterString.read(from: &buf), 
                 args: FfiConverterSequenceString.read(from: &buf)
         )
     }
 
-    public static func write(_ value: FfiClaudeCommand, into buf: inout [UInt8]) {
+    public static func write(_ value: FfiCliCommand, into buf: inout [UInt8]) {
         FfiConverterString.write(value.bin, into: &buf)
         FfiConverterSequenceString.write(value.args, into: &buf)
     }
@@ -668,15 +668,15 @@ public struct FfiConverterTypeFfiClaudeCommand: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeFfiClaudeCommand_lift(_ buf: RustBuffer) throws -> FfiClaudeCommand {
-    return try FfiConverterTypeFfiClaudeCommand.lift(buf)
+public func FfiConverterTypeFfiCliCommand_lift(_ buf: RustBuffer) throws -> FfiCliCommand {
+    return try FfiConverterTypeFfiCliCommand.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeFfiClaudeCommand_lower(_ value: FfiClaudeCommand) -> RustBuffer {
-    return FfiConverterTypeFfiClaudeCommand.lower(value)
+public func FfiConverterTypeFfiCliCommand_lower(_ value: FfiCliCommand) -> RustBuffer {
+    return FfiConverterTypeFfiCliCommand.lower(value)
 }
 
 
@@ -696,13 +696,20 @@ public struct FfiMessagesCall {
     public var priceInPerMtok: Double
     public var priceOutPerMtok: Double
     public var backendName: String
+    /**
+     * Ngôn ngữ trả lời của AI (theo giao diện người dùng).
+     */
+    public var lang: AiLang
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(baseUrl: String, apiKey: String, anthropicVersion: String?, model: String, task: AiTaskKind, 
         /**
          * Văn bản THÔ: lõi tự che PII trước khi gửi (bất biến của lõi).
-         */rawText: String, priceInPerMtok: Double, priceOutPerMtok: Double, backendName: String) {
+         */rawText: String, priceInPerMtok: Double, priceOutPerMtok: Double, backendName: String, 
+        /**
+         * Ngôn ngữ trả lời của AI (theo giao diện người dùng).
+         */lang: AiLang) {
         self.baseUrl = baseUrl
         self.apiKey = apiKey
         self.anthropicVersion = anthropicVersion
@@ -712,6 +719,7 @@ public struct FfiMessagesCall {
         self.priceInPerMtok = priceInPerMtok
         self.priceOutPerMtok = priceOutPerMtok
         self.backendName = backendName
+        self.lang = lang
     }
 }
 
@@ -746,6 +754,9 @@ extension FfiMessagesCall: Equatable, Hashable {
         if lhs.backendName != rhs.backendName {
             return false
         }
+        if lhs.lang != rhs.lang {
+            return false
+        }
         return true
     }
 
@@ -759,6 +770,7 @@ extension FfiMessagesCall: Equatable, Hashable {
         hasher.combine(priceInPerMtok)
         hasher.combine(priceOutPerMtok)
         hasher.combine(backendName)
+        hasher.combine(lang)
     }
 }
 
@@ -778,7 +790,8 @@ public struct FfiConverterTypeFfiMessagesCall: FfiConverterRustBuffer {
                 rawText: FfiConverterString.read(from: &buf), 
                 priceInPerMtok: FfiConverterDouble.read(from: &buf), 
                 priceOutPerMtok: FfiConverterDouble.read(from: &buf), 
-                backendName: FfiConverterString.read(from: &buf)
+                backendName: FfiConverterString.read(from: &buf), 
+                lang: FfiConverterTypeAiLang.read(from: &buf)
         )
     }
 
@@ -792,6 +805,7 @@ public struct FfiConverterTypeFfiMessagesCall: FfiConverterRustBuffer {
         FfiConverterDouble.write(value.priceInPerMtok, into: &buf)
         FfiConverterDouble.write(value.priceOutPerMtok, into: &buf)
         FfiConverterString.write(value.backendName, into: &buf)
+        FfiConverterTypeAiLang.write(value.lang, into: &buf)
     }
 }
 
@@ -823,6 +837,10 @@ public struct FfiScanFlags {
      * JSON Blacklists {"domains":[],"phones":[],"accounts":[]} (rỗng = trống).
      */
     public var blacklistJson: String
+    /**
+     * JSON kho case (CaseStore) cho RAG (rỗng = tắt RAG).
+     */
+    public var casesJson: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -832,12 +850,16 @@ public struct FfiScanFlags {
          */learnedJson: String, 
         /**
          * JSON Blacklists {"domains":[],"phones":[],"accounts":[]} (rỗng = trống).
-         */blacklistJson: String) {
+         */blacklistJson: String, 
+        /**
+         * JSON kho case (CaseStore) cho RAG (rỗng = tắt RAG).
+         */casesJson: String) {
         self.remoteAppRunning = remoteAppRunning
         self.inCall = inCall
         self.bankAppOpen = bankAppOpen
         self.learnedJson = learnedJson
         self.blacklistJson = blacklistJson
+        self.casesJson = casesJson
     }
 }
 
@@ -860,6 +882,9 @@ extension FfiScanFlags: Equatable, Hashable {
         if lhs.blacklistJson != rhs.blacklistJson {
             return false
         }
+        if lhs.casesJson != rhs.casesJson {
+            return false
+        }
         return true
     }
 
@@ -869,6 +894,7 @@ extension FfiScanFlags: Equatable, Hashable {
         hasher.combine(bankAppOpen)
         hasher.combine(learnedJson)
         hasher.combine(blacklistJson)
+        hasher.combine(casesJson)
     }
 }
 
@@ -884,7 +910,8 @@ public struct FfiConverterTypeFfiScanFlags: FfiConverterRustBuffer {
                 inCall: FfiConverterBool.read(from: &buf), 
                 bankAppOpen: FfiConverterBool.read(from: &buf), 
                 learnedJson: FfiConverterString.read(from: &buf), 
-                blacklistJson: FfiConverterString.read(from: &buf)
+                blacklistJson: FfiConverterString.read(from: &buf), 
+                casesJson: FfiConverterString.read(from: &buf)
         )
     }
 
@@ -894,6 +921,7 @@ public struct FfiConverterTypeFfiScanFlags: FfiConverterRustBuffer {
         FfiConverterBool.write(value.bankAppOpen, into: &buf)
         FfiConverterString.write(value.learnedJson, into: &buf)
         FfiConverterString.write(value.blacklistJson, into: &buf)
+        FfiConverterString.write(value.casesJson, into: &buf)
     }
 }
 
@@ -995,6 +1023,74 @@ public func FfiConverterTypeFfiScanResult_lower(_ value: FfiScanResult) -> RustB
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Ngôn ngữ trả lời/lý do (theo ngôn ngữ giao diện người dùng chọn).
+ * Mặc định Vi để tương thích hành vi cũ.
+ */
+
+public enum AiLang {
+    
+    case vi
+    case en
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAiLang: FfiConverterRustBuffer {
+    typealias SwiftType = AiLang
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AiLang {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .vi
+        
+        case 2: return .en
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AiLang, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .vi:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .en:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAiLang_lift(_ buf: RustBuffer) throws -> AiLang {
+    return try FfiConverterTypeAiLang.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAiLang_lower(_ value: AiLang) -> RustBuffer {
+    return FfiConverterTypeAiLang.lower(value)
+}
+
+
+
+extension AiLang: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Tác vụ AI. Tên tránh đụng `Task` của Swift (binding sinh ra cùng module).
  */
 
@@ -1004,6 +1100,10 @@ public enum AiTaskKind {
     case translate
     case solve
     case analyze
+    /**
+     * Kiểm tra lừa đảo bằng AI: tóm tắt + kết luận + lý do (ngắn gọn).
+     */
+    case scamCheck
 }
 
 
@@ -1024,6 +1124,8 @@ public struct FfiConverterTypeAiTaskKind: FfiConverterRustBuffer {
         case 3: return .solve
         
         case 4: return .analyze
+        
+        case 5: return .scamCheck
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1047,6 +1149,10 @@ public struct FfiConverterTypeAiTaskKind: FfiConverterRustBuffer {
         
         case .analyze:
             writeInt(&buf, Int32(4))
+        
+        
+        case .scamCheck:
+            writeInt(&buf, Int32(5))
         
         }
     }
@@ -1204,15 +1310,29 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     }
 }
 /**
+ * Dựng lệnh `agy -p` một phát, JSON. `model` rỗng → CLI tự chọn.
+ */
+public func agyCommandArgs(model: String, task: AiTaskKind, redacted: String, lang: AiLang) -> FfiCliCommand {
+    return try!  FfiConverterTypeFfiCliCommand.lift(try! rustCall() {
+    uniffi_aiassist_core_fn_func_agy_command_args(
+        FfiConverterString.lower(model),
+        FfiConverterTypeAiTaskKind.lower(task),
+        FfiConverterString.lower(redacted),
+        FfiConverterTypeAiLang.lower(lang),$0
+    )
+})
+}
+/**
  * Dựng lệnh `claude -p` cô lập. Prompt đã bọc <INPUT>; nền tảng chỉ việc
  * thực thi trong thư mục tạm với timeout [`task_timeout_secs`].
  */
-public func claudeCommandArgs(model: String, task: AiTaskKind, redacted: String) -> FfiClaudeCommand {
-    return try!  FfiConverterTypeFfiClaudeCommand.lift(try! rustCall() {
+public func claudeCommandArgs(model: String, task: AiTaskKind, redacted: String, lang: AiLang) -> FfiCliCommand {
+    return try!  FfiConverterTypeFfiCliCommand.lift(try! rustCall() {
     uniffi_aiassist_core_fn_func_claude_command_args(
         FfiConverterString.lower(model),
         FfiConverterTypeAiTaskKind.lower(task),
-        FfiConverterString.lower(redacted),$0
+        FfiConverterString.lower(redacted),
+        FfiConverterTypeAiLang.lower(lang),$0
     )
 })
 }
@@ -1223,6 +1343,19 @@ public func estimateTokens(text: String) -> UInt64 {
     return try!  FfiConverterUInt64.lift(try! rustCall() {
     uniffi_aiassist_core_fn_func_estimate_tokens(
         FfiConverterString.lower(text),$0
+    )
+})
+}
+/**
+ * Dựng lệnh `gemini -p` một phát, JSON. `model` rỗng → CLI tự chọn.
+ */
+public func geminiCommandArgs(model: String, task: AiTaskKind, redacted: String, lang: AiLang) -> FfiCliCommand {
+    return try!  FfiConverterTypeFfiCliCommand.lift(try! rustCall() {
+    uniffi_aiassist_core_fn_func_gemini_command_args(
+        FfiConverterString.lower(model),
+        FfiConverterTypeAiTaskKind.lower(task),
+        FfiConverterString.lower(redacted),
+        FfiConverterTypeAiLang.lower(lang),$0
     )
 })
 }
@@ -1304,14 +1437,15 @@ public func redactText(text: String) -> String {
 }
 /**
  * Quét một văn bản. Lõi tự từ chối app nhạy cảm (điểm 0).
- * Không thất bại: JSON hỏng được coi như rỗng.
+ * Không thất bại: JSON hỏng được coi như rỗng. `lang` chọn ngôn ngữ lý do.
  */
-public func scanText(text: String, appId: String, flags: FfiScanFlags) -> FfiScanResult {
+public func scanText(text: String, appId: String, flags: FfiScanFlags, lang: AiLang) -> FfiScanResult {
     return try!  FfiConverterTypeFfiScanResult.lift(try! rustCall() {
     uniffi_aiassist_core_fn_func_scan_text(
         FfiConverterString.lower(text),
         FfiConverterString.lower(appId),
-        FfiConverterTypeFfiScanFlags.lower(flags),$0
+        FfiConverterTypeFfiScanFlags.lower(flags),
+        FfiConverterTypeAiLang.lower(lang),$0
     )
 })
 }
@@ -1385,7 +1519,7 @@ public func taskTimeoutSecs(task: AiTaskKind) -> UInt64 {
 })
 }
 /**
- * Bọc nội dung màn hình thành dữ liệu (chống prompt injection).
+ * Bọc nội dung màn hình thành dữ liệu (tiếng Việt, tương thích cũ).
  */
 public func wrapInput(redacted: String) -> String {
     return try!  FfiConverterString.lift(try! rustCall() {
@@ -1410,10 +1544,16 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_aiassist_core_checksum_func_claude_command_args() != 43074) {
+    if (uniffi_aiassist_core_checksum_func_agy_command_args() != 18511) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aiassist_core_checksum_func_claude_command_args() != 19817) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aiassist_core_checksum_func_estimate_tokens() != 6262) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aiassist_core_checksum_func_gemini_command_args() != 56236) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aiassist_core_checksum_func_is_bank_app() != 37907) {
@@ -1437,7 +1577,7 @@ private var initializationResult: InitializationResult = {
     if (uniffi_aiassist_core_checksum_func_redact_text() != 43146) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aiassist_core_checksum_func_scan_text() != 33289) {
+    if (uniffi_aiassist_core_checksum_func_scan_text() != 15923) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aiassist_core_checksum_func_store_add_case() != 58993) {
@@ -1458,7 +1598,7 @@ private var initializationResult: InitializationResult = {
     if (uniffi_aiassist_core_checksum_func_task_timeout_secs() != 33690) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aiassist_core_checksum_func_wrap_input() != 49920) {
+    if (uniffi_aiassist_core_checksum_func_wrap_input() != 47383) {
         return InitializationResult.apiChecksumMismatch
     }
 

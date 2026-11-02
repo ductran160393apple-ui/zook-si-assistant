@@ -9,6 +9,8 @@ pub struct KeywordGroup {
     pub weight: u32,
     /// Lý do tiếng Việt hiển thị cho người dùng.
     pub reason: &'static str,
+    /// Lý do tiếng Anh (cùng ý với `reason`).
+    pub reason_en: &'static str,
     /// Các cụm từ (dạng chuẩn hóa, khớp nguyên từ).
     pub phrases: &'static [&'static str],
 }
@@ -18,6 +20,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "co_quan",
         weight: 20,
         reason: "Giả danh cơ quan chức năng (công an, tòa án, thuế...)",
+        reason_en: "Impersonating authorities (police, courts, tax...)",
         phrases: &[
             "cong an",
             "can bo cong an",
@@ -37,6 +40,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "hoi_thuc",
         weight: 20,
         reason: "Hối thúc chuyển tiền gấp",
+        reason_en: "Pressuring urgent money transfer",
         phrases: &[
             "chuyen tien",
             "chuyen khoan",
@@ -57,6 +61,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "dieu_khien",
         weight: 20,
         reason: "Yêu cầu cài app điều khiển từ xa",
+        reason_en: "Asking to install a remote-control app",
         phrases: &[
             "anydesk",
             "teamviewer",
@@ -75,6 +80,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "otp",
         weight: 15,
         reason: "Nhắc tới mã OTP/xác thực",
+        reason_en: "Mentioning OTP/authentication codes",
         phrases: &[
             "otp",
             "ma otp",
@@ -90,6 +96,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "trung_thuong",
         weight: 15,
         reason: "Chiêu trúng thưởng/qua tặng",
+        reason_en: "Prize/giveaway bait",
         phrases: &[
             "trung thuong",
             "chuc mung ban",
@@ -105,6 +112,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "viec_lam",
         weight: 15,
         reason: "Việc làm/đầu tư đáng ngờ",
+        reason_en: "Suspicious job/investment offer",
         phrases: &[
             "viec nhe luong cao",
             "kiem tien online",
@@ -120,6 +128,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "giu_bi_mat",
         weight: 15,
         reason: "Yêu cầu giữ bí mật, không tiết lộ",
+        reason_en: "Demanding secrecy, no disclosure",
         phrases: &[
             "giu bi mat",
             "tuyet doi bi mat",
@@ -135,6 +144,7 @@ pub const GROUPS: &[KeywordGroup] = &[
         id: "dinh_danh",
         weight: 10,
         reason: "Yêu cầu định danh/xác thực tài khoản",
+        reason_en: "Requesting ID/account verification",
         phrases: &[
             "xac thuc",
             "xac minh danh tinh",
@@ -267,6 +277,16 @@ pub const BANK_APPS: &[&str] = &[
     "zalopay",
     "vneid",
 ];
+
+impl KeywordGroup {
+    /// Lý do theo ngôn ngữ giao diện.
+    pub fn reason_lang(&self, lang: crate::AiLang) -> &'static str {
+        match lang {
+            crate::AiLang::Vi => self.reason,
+            crate::AiLang::En => self.reason_en,
+        }
+    }
+}
 
 /// true nếu app thuộc danh sách nhạy cảm.
 pub fn is_sensitive_app(app_id: &str) -> bool {

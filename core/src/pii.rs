@@ -20,14 +20,14 @@ fn stk_re() -> &'static Regex {
 fn name_re() -> &'static Regex {
     NAME_RE.get_or_init(|| {
         Regex::new(
-            r"\b(?i:(ten|ho ten|ten khach hang|anh|chi|ong|ba|em))\s*[:\-]?\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){1,4})",
+            r"\b(?i:(ten|tên|ho ten|họ tên|ten khach hang|tên khách hàng|anh|chi|chị|ong|ông|ba|bà|em))\s*[:\-]?\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){1,4})",
         )
         .expect("pii name")
     })
 }
 fn addr_re() -> &'static Regex {
     ADDR_RE.get_or_init(|| {
-        Regex::new(r"(?i)\b(dia chi|địa chỉ|noi o|tam tru|thu?ờng tru)\s*[:\-]?\s*[^,.;\n]{4,120}")
+        Regex::new(r"(?i)\b(dia chi|địa chỉ|noi o|nơi ở|tam tru|tạm trú|thuong tru|thường trú)\s*[:\-]?\s*[^,.;\n]{4,120}")
             .expect("pii addr")
     })
 }
