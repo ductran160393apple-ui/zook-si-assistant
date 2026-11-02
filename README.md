@@ -1,8 +1,13 @@
 # SiAssistant — Screen-reading AI assistant & scam shield
 
-macOS + Android app: reads on-screen content, warns about scams
-on-device (0 tokens), calls AI to summarize / translate / solve when needed.
-Vietnamese UI, one shared Rust core for both platforms.
+**Topic:** "A Context-Aware Personal AI Assistant on Smart Devices:
+Protecting Users and Supporting Everyday Life"
+
+Cross-platform by design: one shared Rust core serves every screen the
+user touches. The macOS app is fully supported today; Android is in
+progress. The app reads on-screen content, warns about scams on-device
+(0 tokens), and calls AI to summarize / translate / solve when needed.
+Vietnamese UI.
 
 3-minute demo video: `SiAssistant-demo-3min.mp4` (with `.srt` subtitles).
 
@@ -11,9 +16,14 @@ Vietnamese UI, one shared Rust core for both platforms.
 <details>
 <summary>🇻🇳 <b>Bản tiếng Việt</b> (click to expand)</summary>
 
-Ứng dụng macOS + Android: đọc nội dung trên màn hình, cảnh báo lừa đảo
-ngay trên máy (0 token), nhờ AI tóm tắt / dịch / giải đề khi cần.
-Giao diện tiếng Việt, một lõi Rust dùng chung cho cả hai nền tảng.
+**Đề tài:** "A Context-Aware Personal AI Assistant on Smart Devices:
+Protecting Users and Supporting Everyday Life"
+
+Đa nền tảng ngay từ thiết kế: một lõi Rust dùng chung phục vụ mọi màn
+hình của người dùng. Hiện tại app macOS được hỗ trợ đầy đủ; Android đang
+phát triển. Ứng dụng đọc nội dung trên màn hình, cảnh báo lừa đảo ngay
+trên máy (0 token), nhờ AI tóm tắt / dịch / giải đề khi cần.
+Giao diện tiếng Việt.
 
 Video demo 3 phút: `SiAssistant-demo-3min.mp4` (kèm phụ đề `.srt`).
 
@@ -56,6 +66,8 @@ hợp đồng FFI 17 hàm, luồng dữ liệu, ranh giới riêng tư),
 [docs/SCORING_SPEC.md](docs/SCORING_SPEC.md) (nhóm từ khóa, tổ hợp,
 ngưỡng, ví dụ chuẩn), [docs/HACKATHON_DEMO.md](docs/HACKATHON_DEMO.md)
 (kịch bản demo 5 phút + fixtures).
+Hồ sơ dự thi: [docs/SUBMISSION.md](docs/SUBMISSION.md) (mô tả project
++ dùng sản phẩm Meta, tiếng Anh và tiếng Việt).
 
 ## Cấu trúc
 
@@ -67,9 +79,9 @@ ngưỡng, ví dụ chuẩn), [docs/HACKATHON_DEMO.md](docs/HACKATHON_DEMO.md)
 - [macos/](macos/) — app menu-bar (SwiftPM, macOS 14+): phím tắt Carbon
   (⌘⇧7/8/9/0, dự phòng ⌃⌥S/T/G/K), panel nổi không cướp focus, cửa sổ
   debug 3 tab, `--selftest`. Binding Swift sinh vào `macos/Generated/`.
-- [android/](android/) — app sideload (API 26+, Compose): debounce 600ms,
-  overlay cảnh báo đỏ, nút nổi AI. Binding Kotlin ở
-  `app/src/main/java/aiassist/uniffi/`.
+- [android/](android/) — app sideload (API 26+, Compose), đang phát
+  triển, chưa test trên thiết bị: debounce 600ms, overlay cảnh báo đỏ,
+  nút nổi AI. Binding Kotlin ở `app/src/main/java/aiassist/uniffi/`.
 - [diagrams/](diagrams/) — sơ đồ kiến trúc, luồng task, auto-learn
   (`.mmd` + `.png`/`.svg`).
 - `Dockerfile` — build lõi + Android trong Docker (SDK 35,
@@ -95,7 +107,8 @@ Giá token (USD/MTok) do nền tảng truyền vào mỗi cuộc gọi.
 ## Yêu cầu
 
 - macOS 14+, Xcode/Swift toolchain, Rust stable.
-- Android: chỉ cần Docker daemon (build trong container).
+- Android (đang phát triển): chỉ cần Docker daemon (build trong
+  container); bản phát hành được hỗ trợ hiện tại là app macOS.
 - Quyền macOS: Ghi màn hình (Screen Recording) + Accessibility —
   hệ thống không cho app tự bật hộp xin quyền, thêm app bằng nút `+`
   trong Cài đặt. Chữ ký ad-hoc → cấp lại quyền mỗi lần build;
@@ -121,7 +134,7 @@ Dữ liệu user ở `~/Library/Application Support/AiAssistant/`
 (ghi đè bằng `AIASSIST_DATA_DIR` cho selftest).
 
 ```bash
-# Android (cần Docker daemon)
+# Android (cần Docker daemon; thử nghiệm, chưa test thiết bị)
 docker build -t aiassist-builder .
 docker run --rm -v "$PWD:/work" -v aiassist-cargo:/root/.cargo \
   -v aiassist-gradle:/root/.gradle \
@@ -195,6 +208,8 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (module ownership,
 [docs/SCORING_SPEC.md](docs/SCORING_SPEC.md) (keyword groups, combos,
 thresholds), [docs/HACKATHON_DEMO.md](docs/HACKATHON_DEMO.md) (5-minute
 demo script + fixtures; the first two docs are in Vietnamese).
+Submission Q&A: [docs/SUBMISSION.md](docs/SUBMISSION.md) (project
+description + Meta products usage, English and Vietnamese).
 
 ## Layout
 
@@ -208,9 +223,9 @@ demo script + fixtures; the first two docs are in Vietnamese).
   (⌘⇧7/8/9/0, fallback ⌃⌥S/T/G/K), focus-stealing-free floating panel,
   3-tab debug window, `--selftest`. Swift bindings generated into
   `macos/Generated/`.
-- [android/](android/) — sideload app (API 26+, Compose): 600ms debounce,
-  red alert overlay, AI floating button. Kotlin bindings in
-  `app/src/main/java/aiassist/uniffi/`.
+- [android/](android/) — sideload app (API 26+, Compose), in progress
+  and not yet device-tested: 600ms debounce, red alert overlay, AI
+  floating button. Kotlin bindings in `app/src/main/java/aiassist/uniffi/`.
 - [diagrams/](diagrams/) — architecture, task-flow and auto-learn diagrams
   (`.mmd` + `.png`/`.svg`).
 - `Dockerfile` — build core + Android in Docker (SDK 35,
@@ -238,7 +253,8 @@ Reasoning levels: low (summarize/translate), medium (analyze), high
 ## Requirements
 
 - macOS 14+, Xcode/Swift toolchain, stable Rust.
-- Android: only a Docker daemon (builds inside the container).
+- Android (in progress): only a Docker daemon (builds inside the
+  container); the macOS app is the supported release today.
 - macOS permissions: Screen Recording + Accessibility — the OS doesn't
   let apps trigger the prompt themselves; add the app via the `+` button
   in Settings. Ad-hoc signature → re-grant after every build; releases
@@ -264,7 +280,7 @@ User data lives in `~/Library/Application Support/AiAssistant/`
 (override with `AIASSIST_DATA_DIR` for selftests).
 
 ```bash
-# Android (needs Docker daemon)
+# Android (needs Docker daemon; experimental, not device-tested)
 docker build -t aiassist-builder .
 docker run --rm -v "$PWD:/work" -v aiassist-cargo:/root/.cargo \
   -v aiassist-gradle:/root/.gradle \
