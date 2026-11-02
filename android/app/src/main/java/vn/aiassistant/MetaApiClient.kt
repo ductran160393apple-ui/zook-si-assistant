@@ -12,13 +12,15 @@ object MetaApiClient {
         baseUrl: String,
         apiKey: String,
         model: String,
+        english: Boolean = false,
     ): Outcome {
         if (apiKey.isBlank()) return Outcome("Thiếu Meta API key. Nhập key trong app.", "")
         return try {
             val res = uniffi.aiassist_core.messagesCall(
                 uniffi.aiassist_core.FfiMessagesCall(
                     baseUrl, apiKey, null, model, task, redactedText,
-                    0.00015, 0.0006, "meta",
+                    1.25, 4.25, "meta",
+                    if (english) uniffi.aiassist_core.AiLang.EN else uniffi.aiassist_core.AiLang.VI,
                 ),
             )
             val cost = res.costUsd
@@ -29,7 +31,7 @@ object MetaApiClient {
             }
             Outcome(res.text, tok)
         } catch (e: Exception) {
-            Outcome("Lỗi mạng (Meta): ${e.message}. Đã thử 3 lần.", "")
+            Outcome("Lỗi Meta: ${e.message}. Đã thử 3 lần.", "")
         }
     }
 }

@@ -40,7 +40,7 @@ class NotificationScanner : NotificationListenerService() {
         // Nội dung trung tính: không từ khóa lừa đảo, không tự kích hoạt lại.
         val n = NotificationCompat.Builder(this, "danger")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("Trợ lý AI: phát hiện nội dung nguy hiểm ($score/100)")
+            .setContentTitle("SiAssitant: phát hiện nội dung nguy hiểm ($score/100)")
             .setContentText("Mở app để xem chi tiết và hướng xử lý.")
             .setContentIntent(open)
             .setAutoCancel(true)

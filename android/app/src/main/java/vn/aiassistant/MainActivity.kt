@@ -55,7 +55,7 @@ fun MainScreen() {
     val overlayOk = OverlayManager.isOverlayGranted(ctx)
 
     Column(Modifier.verticalScroll(rememberScrollState())) {
-        Text("Trợ lý AI — chống lừa đảo")
+        Text("SiAssitant — chống lừa đảo")
         Text("Quyền: Accessibility=${onOff(accOn)} · Đọc thông báo=${onOff(notifOn)} · Overlay=${onOff(overlayOk)} · Cuộc gọi=${onOff(CallTracker.inCall)}")
         if (!accOn) Button(onClick = { ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Bật Accessibility") }
         if (!notifOn) Button(onClick = { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) { Text("Bật đọc thông báo") }
@@ -86,13 +86,13 @@ fun MainScreen() {
             Button(onClick = {
                 scope.launch(Dispatchers.Default) {
                     val redacted = try { CoreBridge.redact(input) } catch (e: Exception) { input }
-                    val out = MetaApiClient.run(uniffi.aiassist_core.AiTaskKind.ANALYZE, redacted, "https://api.meta.ai/v1", loadMetaKey(ctx), "meta-llama-3.1-70b")
+                    val out = MetaApiClient.run(uniffi.aiassist_core.AiTaskKind.ANALYZE, redacted, "https://api.meta.ai/v1", loadMetaKey(ctx), "muse-spark-1.3")
                     withContext(Dispatchers.Main) { result = out.text + "\n(${out.tokens})" }
                 }
             }) { Text("Phân tích bằng Meta") }
         }
         Text(result)
-        // Meta API là backend duy nhất trên Android (Claude/Argon/Anthropic là macOS).
+        // Meta API là backend duy nhất trên Android (các CLI + Anthropic là macOS).
         Text("Backend: Meta API")
         TextField(value = metaKey, onValueChange = {
             metaKey = it
@@ -122,8 +122,8 @@ private fun prefs(ctx: android.content.Context) = EncryptedSharedPreferences.cre
 )
 
 private fun loadMetaKey(ctx: android.content.Context): String =
-    try { prefs(ctx).getString("meta_key", "") ?: "" } catch (_: Exception) { "" }
+    try { (prefs(ctx).getString("meta_key", "") ?: "").trim() } catch (_: Exception) { "" }
 
 private fun saveMetaKey(ctx: android.content.Context, key: String) {
-    try { prefs(ctx).edit().putString("meta_key", key).apply() } catch (_: Exception) { }
+    try { prefs(ctx).edit().putString("meta_key", key.trim()).apply() } catch (_: Exception) { }
 }

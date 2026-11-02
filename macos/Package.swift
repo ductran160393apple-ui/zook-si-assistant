@@ -16,5 +16,11 @@ let package = Package(
                 .linkedLibrary("aiassist_core"),
             ]
         ),
+        .testTarget(
+            name: "AiAssistantTests",
+            dependencies: ["AiAssistant"],
+            path: "Tests/AiAssistantTests",
+            linkerSettings: [.linkedLibrary("aiassist_core")]
+        ),
     ]
 )

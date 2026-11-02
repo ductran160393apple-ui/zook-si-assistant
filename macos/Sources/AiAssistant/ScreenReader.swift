@@ -1,16 +1,144 @@
+import AppKit
 import Foundation
 import ScreenCaptureKit
 import Vision
 
-/// Chụp cửa sổ trên cùng của app đang ở phía trước (theo z-order của
-/// CGWindowList), không bao giờ chụp cửa sổ của chính app; OCR bằng Vision
-/// ngay trên máy (ưu tiên vi rồi en), sắp xếp theo thứ tự đọc.
-/// Ảnh chỉ nằm trong RAM, không ghi đĩa. App nhạy cảm → trả nil.
+/// Chụp màn hình + OCR bằng Vision ngay trên máy (ưu tiên vi rồi en),
+/// sắp xếp theo thứ tự đọc. Bấm tay chụp cửa sổ trước mặt (current view);
+/// auto-monitor chụp từng cửa sổ giữ lại (bắt cả tab nhỏ nền, tối đa 8).
+/// Không bao giờ chụp cửa sổ của chính app; ảnh chỉ nằm trong RAM, không
+/// ghi đĩa. App nhạy cảm → trả nil (bấm tay) hoặc bị loại khỏi danh sách
+/// quét (auto).
 enum ScreenReader {
+    /// true khi lần lấy nội dung chia sẻ gần nhất bị chặn TCC (quyền Ghi
+    /// màn hình bị thu hồi — thường do ký lại app). Monitor đọc để hiện
+    /// panel hướng dẫn cấp quyền một lần; thành công thì về false.
+    static var tccBlocked = false
+
     /// Bundle id app đang ở phía trước + text OCR được (nil nếu app nhạy cảm).
     static func captureFrontWindow() async -> (app: String, text: String)? {
         guard let (app, image) = await captureFrontImage() else { return nil }
         return (app, ocr(image))
+    }
+
+    /// Cửa sổ hệ thống không bao giờ là mục tiêu (từng bị chụp nhầm).
+    private static let systemBundles: Set<String> = [
+        "com.apple.dock",
+        "com.apple.controlcenter",
+        "com.apple.notificationcenterui",
+    ]
+
+    /// Quyết định giữ app trong ảnh toàn màn hình (hàm thuần, có unit
+    /// test): bỏ app của mình, app nhạy cảm (ngân hàng...) và app hệ thống
+    /// (dock, banner thông báo...); giữ lại còn lại. Áp qua
+    /// `excludingApplications` (KHÔNG dùng `exceptingWindows` — tham số đó
+    /// nghĩa ngược: cửa sổ được giữ lại dù app bị loại).
+    static func keepApp(bundleID: String, ownBundle: String?) -> Bool {
+        if bundleID.isEmpty { return false }
+        if bundleID == ownBundle { return false }
+        if systemBundles.contains(bundleID) { return false }
+        return !isSensitiveApp(appId: bundleID)
+    }
+
+    /// Chụp từng cửa sổ giữ lại cho auto-monitor (bắt cả tab nhỏ nền).
+    /// Dùng filter desktopIndependentWindow đã kiểm chứng (filter display bị
+    /// lỗi invalid parameter trên máy này). Nil khi: không lấy được nội dung
+    /// chia sẻ / app trước mặt nhạy cảm / không có cửa sổ nào. Cửa sổ chụp
+    /// lỗi bị bỏ qua, không làm hỏng cả nhịp.
+    static func captureKeptWindows() async -> (front: String, shots: [(id: UInt32, app: String, image: CGImage)])? {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let ownBundle = Bundle.main.bundleIdentifier
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.excludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: true
+            )
+        } catch {
+            DiagLog.line("auto: không lấy được danh sách cửa sổ: \(error.localizedDescription)")
+            tccBlocked = true
+            return nil
+        }
+        tccBlocked = false
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
+        if !front.isEmpty, isSensitive(front) {
+            DiagLog.line("auto: app trước mặt nhạy cảm, bỏ nhịp")
+            return nil
+        }
+        let wins = keptWindows(in: content, ownPID: ownPID, ownBundle: ownBundle)
+        // Chẩn đoán khi không quét được: tổng số cửa sổ hệ thấy + danh
+        // sách giữ lại (chỉ ghi khi thất bại để khỏi spam file log).
+        func diag() -> String {
+            let kept = wins.map {
+                "\($0.owningApplication?.bundleIdentifier ?? "?"):\(Int($0.frame.width))x\(Int($0.frame.height))"
+            }.joined(separator: ",")
+            return "thấy=\(content.windows.count) giữ=[\(kept)]"
+        }
+        if wins.isEmpty {
+            DiagLog.line("auto: không có cửa sổ nào để quét (\(diag()))")
+            return nil
+        }
+        var shots: [(UInt32, String, CGImage)] = []
+        var firstErr = ""
+        for w in wins {
+            do {
+                let img = try await captureWindowImage(w)
+                shots.append((w.windowID, w.owningApplication?.bundleIdentifier ?? "", img))
+            } catch {
+                if firstErr.isEmpty { firstErr = error.localizedDescription }
+            }
+        }
+        if shots.count < wins.count {
+            DiagLog.line("auto: chụp \(shots.count)/\(wins.count) cửa sổ (\(diag())) lỗi=\(firstErr)")
+            if shots.isEmpty { return nil }
+        }
+        return (front, shots)
+    }
+
+    /// Cửa sổ giữ lại để quét: bỏ app mình/nhạy cảm/hệ thống + cửa sổ tí hon
+    /// (< 120×80), lấy tối đa `maxCount` theo diện tích giảm dần.
+    static func keptWindows(
+        in content: SCShareableContent,
+        ownPID: pid_t,
+        ownBundle: String?,
+        maxCount: Int = 8
+    ) -> [SCWindow] {
+        content.windows
+            .filter {
+                $0.frame.width >= 120 && $0.frame.height >= 80
+                    && $0.owningApplication?.processID != ownPID
+                    && keepApp(bundleID: $0.owningApplication?.bundleIdentifier ?? "", ownBundle: ownBundle)
+            }
+            .sorted { ($0.frame.width * $0.frame.height) > ($1.frame.width * $1.frame.height) }
+            .prefix(maxCount)
+            .map { $0 }
+    }
+
+    /// Kích thước pixel chụp cho 1 cửa sổ (điểm × tỉ lệ màn hình, tối
+    /// thiểu 1 — SCK từ chối width/height = 0). Hàm thuần, có unit test.
+    static func capturePixelSize(points: CGSize, scale: CGFloat) -> (Int, Int) {
+        (max(1, Int(points.width * scale)), max(1, Int(points.height * scale)))
+    }
+
+    /// Cấu hình chụp với kích thước pixel rõ ràng.
+    private static func windowConfig(pixelWidth: Int, pixelHeight: Int) -> SCStreamConfiguration {
+        let c = SCStreamConfiguration()
+        c.pixelFormat = kCVPixelFormatType_32BGRA
+        c.showsCursor = false
+        c.scalesToFit = false
+        c.width = pixelWidth
+        c.height = pixelHeight
+        return c
+    }
+
+    /// Chụp 1 cửa sổ (ném lỗi để bên gọi ghi chẩn đoán).
+    static func captureWindowImage(_ win: SCWindow) async throws -> CGImage {
+        let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
+        let (w, h) = capturePixelSize(points: win.frame.size, scale: scale)
+        return try await SCScreenshotManager.captureImage(
+            contentFilter: SCContentFilter(desktopIndependentWindow: win),
+            configuration: windowConfig(pixelWidth: w, pixelHeight: h)
+        )
     }
 
     /// Chụp ảnh thô (chưa OCR) để auto-monitor so thumbnail trước khi OCR.
@@ -21,8 +149,23 @@ enum ScreenReader {
             onScreenWindowsOnly: true
         ) else { return nil }
 
-        // Cửa sổ trên cùng không thuộc về chính app.
-        guard let win = content.windows.first(where: { $0.owningApplication?.processID != ownPID }) else {
+        // Danh sách windows không theo thứ tự z và chứa cửa sổ hệ thống →
+        // ưu tiên cửa sổ LỚN NHẤT của app đang ở phía trước (current view).
+        let ownBundle = Bundle.main.bundleIdentifier
+        let cands = content.windows.filter {
+            $0.owningApplication?.processID != ownPID
+                && $0.frame.width > 1 && $0.frame.height > 1
+                && !(systemBundles.contains($0.owningApplication?.bundleIdentifier ?? ""))
+        }
+        var win: SCWindow?
+        if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+           !front.isEmpty, front != ownBundle
+        {
+            win = cands.filter { $0.owningApplication?.bundleIdentifier == front }
+                .max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
+        }
+        if win == nil { win = cands.first }
+        guard let win else {
             return await captureFullScreenImage(excludingOwnPID: ownPID, content: content)
         }
         let appID = win.owningApplication?.bundleIdentifier ?? ""
@@ -34,6 +177,7 @@ enum ScreenReader {
         return (appID, image)
     }
 
+    /// Dự phòng khi không thấy cửa sổ nào (hiếm). Fails closed.
     private static func captureFullScreenImage(
         excludingOwnPID ownPID: pid_t,
         content: SCShareableContent
@@ -44,9 +188,11 @@ enum ScreenReader {
             excludingApplications: content.applications.filter { $0.processID == ownPID },
             exceptingWindows: []
         )
+        let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
+        let (w, h) = capturePixelSize(points: display.frame.size, scale: scale)
         guard let image = try? await SCScreenshotManager.captureImage(
             contentFilter: filter,
-            configuration: streamConfig(scale: 1)
+            configuration: windowConfig(pixelWidth: w, pixelHeight: h)
         ) else { return nil }
         return ("", image)
     }

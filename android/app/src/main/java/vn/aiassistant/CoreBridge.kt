@@ -26,6 +26,7 @@ object CoreBridge {
         bankAppOpen,
         ctx?.let { loadRulesJson(it) } ?: "",
         "",
+        ctx?.let { loadCasesJson(it) } ?: "",
     )
 
     fun scan(
@@ -35,8 +36,12 @@ object CoreBridge {
         remoteAppRunning: Boolean = false,
         inCall: Boolean = false,
         bankAppOpen: Boolean = false,
+        english: Boolean = false,
     ): uniffi.aiassist_core.FfiScanResult =
-        uniffi.aiassist_core.scanText(text, appId, flags(remoteAppRunning, inCall, bankAppOpen, ctx))
+        uniffi.aiassist_core.scanText(
+            text, appId, flags(remoteAppRunning, inCall, bankAppOpen, ctx),
+            if (english) uniffi.aiassist_core.AiLang.EN else uniffi.aiassist_core.AiLang.VI,
+        )
 
     fun redact(text: String): String = uniffi.aiassist_core.redactText(text)
 
@@ -49,6 +54,21 @@ object CoreBridge {
     fun loadRulesJson(ctx: Context): String = try {
         File(ctx.filesDir, RULES_FILE).takeIf { it.exists() }?.readText() ?: ""
     } catch (_: Exception) { "" }
+
+    /** JSON kho case cho RAG (cache theo mtime, lõi bỏ qua khi rỗng). */
+    private var casesCache: Pair<Long, String>? = null
+
+    fun loadCasesJson(ctx: Context): String = try {
+        val f = File(ctx.filesDir, CASES_FILE)
+        if (!f.exists()) return ""
+        val m = f.lastModified()
+        casesCache?.takeIf { it.first == m }?.second?.let { return it }
+        val s = f.readText()
+        casesCache = m to s
+        s
+    } catch (_: Exception) { "" }
+
+    fun invalidateCasesCache() { casesCache = null }
 
     /** Lưu case qua lõi (lõi che PII, cắt 1500 ký tự, dedup Jaccard, giữ 1000). */
     fun recordCase(ctx: Context, appId: String, text: String, score: UInt, reasons: List<String>) {
@@ -63,6 +83,7 @@ object CoreBridge {
                 .put("reasons", org.json.JSONArray(reasons))
                 .toString()
             f.writeText(uniffi.aiassist_core.storeAddCase(current, cand))
+            invalidateCasesCache()
         } catch (_: Exception) { }
     }
 

@@ -3,13 +3,19 @@ import CoreGraphics
 import Foundation
 
 /// Theo dõi tự động phát hiện lừa đảo (mặc định tắt, 0 token):
-/// mỗi 4s + khi đổi app, chụp 1x, so thumbnail 16×16 (ngưỡng 2,5/255),
-/// chỉ OCR khi màn hình đổi; nghỉ khi idle > 60s; không lặp cảnh báo
+/// nhịp 1s + quét ngay khi đổi app, chụp từng cửa sổ giữ lại (tối đa 8,
+/// bắt cả tab nhỏ nền), so thumbnail 16×16 từng cửa sổ (ngưỡng 2,5/255),
+/// chỉ OCR khi có cửa sổ đổi; nghỉ khi idle > 60s; không lặp cảnh báo
 /// (cùng app + lý do) trong 2 phút.
 final class AutoMonitor {
     private var timer: Timer?
-    private var lastThumb: [UInt8] = []
-    private var lastApp = ""
+    private var appSwitchObserver: NSObjectProtocol?
+    /// Chữ ký đổi-mới nhịp trước: (windowID, thumbnail), sắp xếp theo id.
+    private var lastWinSig: [(UInt32, [UInt8])] = []
+    /// Text lần quét gần nhất (để nuôi analyzer cả khi màn hình không đổi).
+    private var lastScanText = ""
+    /// Đã hiện panel hướng dẫn cấp quyền TCC trong đợt chặn này chưa.
+    private var tccPanelShown = false
     private var lastAlertAt: [String: Date] = [:]
     private var runningTask = false
     private weak var analyzer: AutoAnalyzer?
@@ -17,36 +23,143 @@ final class AutoMonitor {
     func start(state: AppState, analyzer: AutoAnalyzer) {
         stop()
         self.analyzer = analyzer
-        timer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
-            guard let self, !self.runningTask else { return }
-            self.runningTask = true
-            Task {
-                await self.tick(state: state)
-                self.runningTask = false
-            }
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.kick(state: state)
+        }
+        // Realtime: đổi app là quét ngay, không chờ nhịp sau.
+        appSwitchObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in self?.kick(state: state) }
+    }
+
+    func stop() {
+        timer?.invalidate(); timer = nil; analyzer = nil
+        if let o = appSwitchObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(o)
+        }
+        appSwitchObserver = nil
+    }
+
+    /// Kích một nhịp quét (chống chạy chồng).
+    private func kick(state: AppState) {
+        guard !runningTask else {
+            ProbeMonitor.log("kick bỏ qua (nhịp trước chưa xong)")
+            return
+        }
+        runningTask = true
+        Task {
+            await self.tick(state: state)
+            self.runningTask = false
         }
     }
 
-    func stop() { timer?.invalidate(); timer = nil; analyzer = nil }
+    /// true khi tập cửa sổ + thumbnail từng cái đều như nhịp trước
+    /// (hàm thuần, có unit test; cả hai đầu vào phải sắp xếp theo id).
+    static func winsUnchanged(current: [(UInt32, [UInt8])], last: [(UInt32, [UInt8])]) -> Bool {
+        guard current.count == last.count, !current.isEmpty else { return false }
+        for (c, l) in zip(current, last) {
+            guard c.0 == l.0, ScreenReader.meanDiff(c.1, l.1) < 2.5 else { return false }
+        }
+        return true
+    }
 
     private func tick(state: AppState) async {
-        guard !isIdle(seconds: 60) else { return }
-        guard let (app, image) = await ScreenReader.captureFrontImage() else { return }
-        if app != lastApp { lastThumb = []; lastApp = app }
-        // Chỉ OCR khi màn hình đổi (rỗng lần đầu → meanDiff vô cực → vẫn OCR).
-        let thumb = ScreenReader.thumbnail16(image)
-        guard ScreenReader.meanDiff(thumb, lastThumb) >= 2.5 else { return }
-        lastThumb = thumb
-        let text = ScreenReader.ocr(image)
-        guard !text.isEmpty else { return }
-        let res = scanText(text: text, appId: app, flags: state.scanFlags(frontApp: app))
-        state.log(app: app, score: res.score, level: res.level, reasons: res.reasons, tokens: "luật máy · 0 token")
+        ProbeMonitor.ticks += 1
+        ProbeMonitor.log("tick #\(ProbeMonitor.ticks) bắt đầu")
+        guard !isIdle(seconds: 60) else { ProbeMonitor.log("tick xong: idle"); return }
+        guard let (front, shots) = await ScreenReader.captureKeptWindows() else {
+            ProbeMonitor.log("tick xong: không chụp được")
+            // Bị chặn TCC (thường do ký lại app) → hiện panel hướng dẫn
+            // cấp quyền một lần thay vì im lặng quét chay.
+            if ScreenReader.tccBlocked, !tccPanelShown {
+                tccPanelShown = true
+                await MainActor.run {
+                    state.autoWarnTitle = L("Cần cấp quyền Ghi màn hình", "Screen Recording permission needed")
+                    state.autoWarnLevel = "suspicious"
+                    state.autoWarnBody = L(
+                        "SiAssitant đang bị từ chối quyền Ghi màn hình nên quét tự động tạm dừng.\n\nMở Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Ghi màn hình, bật lại SiAssitant (tắt rồi bật nếu đã có), sau đó thoát app và mở lại.",
+                        "SiAssitant was denied Screen Recording permission, so auto-scan is paused.\n\nOpen System Settings → Privacy & Security → Screen Recording, re-enable SiAssitant (toggle off and on if already listed), then quit and relaunch the app."
+                    )
+                    AppDelegate.current?.showWarningPanel()
+                }
+            }
+            return
+        }
+        tccPanelShown = false
+        // Chỉ OCR khi có cửa sổ đổi (tập id + thumbnail từng cái). Nhịp
+        // không đổi vẫn nuôi analyzer bằng text cũ — nếu không, màn hình
+        // càng tĩnh thì analyzer càng không bao giờ đủ 8s ổn định để chạy.
+        let sig = shots.map { ($0.id, ScreenReader.thumbnail16($0.image)) }.sorted { $0.0 < $1.0 }
+        guard !Self.winsUnchanged(current: sig, last: lastWinSig) else {
+            ProbeMonitor.log("tick xong: màn hình không đổi")
+            analyzer?.observe(text: lastScanText, state: state)
+            return
+        }
+        lastWinSig = sig
+        let app = front.isEmpty ? (shots.first?.app ?? "") : front
+        let text = shots.compactMap { ScreenReader.ocr($0.image) }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+        guard !text.isEmpty else {
+            ProbeMonitor.log("tick xong: OCR rỗng")
+            DiagLog.line("auto: OCR rỗng (app=\(app) wins=\(shots.count))")
+            return
+        }
+        lastScanText = text
+        let res = scanText(text: text, appId: app, flags: state.scanFlags(frontApp: app), lang: state.lang.core)
+        ProbeMonitor.log("tick xong: quét \(app) điểm=\(res.score)")
+        DiagLog.line("auto: quét app=\(app) wins=\(shots.count) chars=\(text.count) score=\(res.score) level=\(res.level)")
+        state.log(app: app, score: res.score, level: res.level, reasons: res.reasons, tokens: L("luật máy · 0 token", "local rules · 0 tokens"))
         if res.level == "dangerous" {
             let key = app + res.reasons.joined()
-            if let t = lastAlertAt[key], Date().timeIntervalSince(t) < 120 { return }
+            if let t = lastAlertAt[key], Date().timeIntervalSince(t) < 120 {
+                // Trùng trong 2 phút: không bật panel lại nhưng icon vẫn đỏ.
+                DiagLog.line("auto: trùng 2 phút, chỉ đỏ icon (không bật panel)")
+                await MainActor.run { state.alertLevel = "dangerous" }
+                return
+            }
             lastAlertAt[key] = Date()
+            DiagLog.line("auto: NGUY HIỂM → showWarningPanel")
+            let ruleHead = res.reasons.map { "• \($0)" }.joined(separator: "\n")
             await MainActor.run {
-                state.lastWarning = "NGUY HIỂM (\(res.score)): " + res.reasons.joined(separator: "; ")
+                state.alertLevel = "dangerous"
+                // Cảnh báo mới thì bật panel cảnh báo ngay (không cướp
+                // focus, không đè panel tay): lý do luật ở trên + dòng chờ
+                // AI kiểm chéo (tốn token) ở dưới.
+                state.autoWarnTitle = PanelTitle.name(task: .scamCheck, lang: state.lang)
+                state.autoWarnLevel = "dangerous"
+                state.autoWarnBody = "\(ruleHead)\n\n---\n\(ScamVerdict.pendingLine(lang: state.lang))"
+                AppDelegate.current?.showWarningPanel()
+            }
+            // Chạy nền AI kiểm chéo, thay dòng chờ bằng kết quả LLM.
+            // Chỉ gắn khi panel chưa bị nội dung khác ghi đè (so khớp chuỗi).
+            ProbeMonitor.log("gọi AI kiểm chéo nguy hiểm (\(text.count) chữ)")
+            Task {
+                let redacted = String(redactText(text: text).prefix(ScamVerdict.maxAiChars))
+                let out = await AiRunner.run(task: .scamCheck, redactedText: redacted, state: state)
+                ProbeMonitor.log("AI kiểm chéo xong (\(out.text.count) chữ)")
+                await MainActor.run {
+                    state.log(app: app, score: res.score, level: res.level, reasons: res.reasons, tokens: out.tokens)
+                    // Thay dòng chờ bằng kết quả thật (kể cả khi AI lỗi như
+                    // hết quota — để người dùng biết, thay vì treo "đang…").
+                    let expected = "\(ruleHead)\n\n---\n\(ScamVerdict.pendingLine(lang: state.lang))"
+                    if state.autoWarnBody == expected {
+                        state.autoWarnBody = ScamVerdict.autoCombined(rules: res.reasons, aiText: out.text)
+                    }
+                }
+            }
+        } else {
+            // Panel cảnh báo cập nhật realtime theo lần quét mới nhất (kể
+            // cả an toàn để không kẹt tin cũ), nhưng không tự bật — chỉ
+            // nguy hiểm mới bật. Panel tay không bao giờ bị auto đụng tới.
+            await MainActor.run {
+                state.alertLevel = res.level
+                state.autoWarnTitle = PanelTitle.name(task: .scamCheck, lang: state.lang)
+                state.autoWarnLevel = res.level
+                state.autoWarnBody = AutoClear.scanLine(
+                    app: app, score: res.score, level: res.level,
+                    reasons: res.reasons, date: Date(), lang: state.lang
+                )
             }
         }
         analyzer?.observe(text: text, state: state)
@@ -72,23 +185,39 @@ final class AutoAnalyzer {
     private var lastRun = Date.distantPast
     var manualBusy = false
 
+    /// Luật chốt chạy AI (hàm thuần, có unit test): chữ ổn định (giống
+    /// nhịp trước ≥ 50%), giữ ổn định ≥ 8s, cách lần chạy trước ≥ 60s, và
+    /// khác nội dung lần trước (< 60%).
+    static func shouldAnalyze(stableSim: Double, stableSecs: Double, sinceRunSecs: Double, lastSim: Double) -> Bool {
+        stableSim >= 0.5 && stableSecs >= 8 && sinceRunSecs >= 60 && lastSim < 0.6
+    }
+
     func observe(text: String, state: AppState) {
         guard state.autoAnalyze, !manualBusy, text.count >= 300 else { return }
         let words = Set(text.lowercased().split(separator: " ").map(String.init))
         let sim = jaccard(words, lastWords)
         if sim < 0.5 { stableSince = Date(); lastWords = words; return }
-        guard Date().timeIntervalSince(stableSince) >= 8,
-              Date().timeIntervalSince(lastRun) >= 60,
-              jaccard(words, Set(lastText.lowercased().split(separator: " ").map(String.init))) < 0.6
-        else { return }
+        let lastSim = jaccard(words, Set(lastText.lowercased().split(separator: " ").map(String.init)))
+        guard Self.shouldAnalyze(
+            stableSim: sim,
+            stableSecs: Date().timeIntervalSince(stableSince),
+            sinceRunSecs: Date().timeIntervalSince(lastRun),
+            lastSim: lastSim
+        ) else { return }
         lastRun = Date(); lastText = text
+        ProbeMonitor.analyzes += 1
+        ProbeMonitor.log("gọi AI phân tích #\(ProbeMonitor.analyzes) (\(text.count) chữ)")
+        DiagLog.line("auto: gọi AI phân tích (\(text.count) chữ)")
         Task {
             let redacted = redactText(text: text)
             let out = await AiRunner.run(task: .analyze, redactedText: redacted, state: state)
             await MainActor.run {
-                state.lastResult = out.text
-                state.log(app: "auto", score: 0, level: "safe", reasons: ["Phân tích tự động"], tokens: out.tokens)
+                // Ô phân tích riêng trong panel cảnh báo (không đè verdict
+                // cũng không đè panel tay).
+                state.autoAnalysis = out.text
+                state.log(app: "auto", score: 0, level: "safe", reasons: [L("Phân tích tự động", "Automatic analysis")], tokens: out.tokens)
             }
+            ProbeMonitor.log("AI phân tích xong (\(out.text.count) chữ)")
         }
     }
 
@@ -107,7 +236,8 @@ extension AppState {
             inCall: false,
             bankAppOpen: isBankApp(appId: frontApp),
             learnedJson: LearnStore.loadRulesJSON(),
-            blacklistJson: ""
+            blacklistJson: "",
+            casesJson: LearnStore.loadCasesJSON()
         )
     }
 
@@ -115,6 +245,56 @@ extension AppState {
         NSWorkspace.shared.runningApplications.contains {
             guard let bid = $0.bundleIdentifier else { return false }
             return isRemoteApp(appId: bid)
+        }
+    }
+
+    /// Áp lịch học tự động theo `learnAuto` (gọi khi đổi picker + khi mở app).
+    func applyLearnAuto() {
+        if let iv = learnAuto.interval {
+            LearnScheduler.startAuto(state: self, interval: iv)
+        } else {
+            LearnScheduler.stopAuto()
+        }
+    }
+}
+
+/// Chẩn đoán nhịp monitor cho `--probe-monitor`: đếm + in timestamp từng
+/// nhịp và từng lần gọi AI phân tích. Im lặng hoàn toàn khi tắt (mặc định).
+enum ProbeMonitor {
+    static var verbose = false
+    static var t0 = Date()
+    static var ticks = 0
+    static var analyzes = 0
+
+    static func stamp() -> String {
+        String(format: "%06.2f", Date().timeIntervalSince(t0))
+    }
+
+    static func log(_ s: String) {
+        guard verbose else { return }
+        print("PROBE-MONITOR \(stamp()) \(s)")
+    }
+}
+
+/// Lịch học tự động (lưu UserDefaults "learnAuto", mặc định tắt).
+enum LearnAuto: String, CaseIterable, Sendable {
+    case off
+    case h6 = "6h"
+    case h24 = "24h"
+
+    var interval: TimeInterval? {
+        switch self {
+        case .off: nil
+        case .h6: 6 * 3600
+        case .h24: 24 * 3600
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .off: L("Tắt", "Off")
+        case .h6: L("Mỗi 6 giờ", "Every 6 hours")
+        case .h24: L("Mỗi 24 giờ", "Every 24 hours")
         }
     }
 }
@@ -134,7 +314,7 @@ enum LearnScheduler {
         let store = LearnStore.load()
         let batch = store.pendingCases(limit: 60)
         guard !batch.isEmpty else {
-            state.lastReport = "Không có case mới để học."
+            state.lastReport = L("Không có case mới để học.", "No new cases to learn.")
             return
         }
         state.isLearning = true
@@ -146,7 +326,10 @@ enum LearnScheduler {
                 if let data {
                     store.applyLearnOutput(data, state: state, usage: usage)
                 } else {
-                    state.lastReport = "Vòng học thất bại: agent hết giờ (300s), bị hủy hoặc lỗi khởi chạy."
+                    state.lastReport = L(
+                        "Vòng học thất bại: agent hết giờ (300s), bị hủy hoặc lỗi khởi chạy.",
+                        "Learning round failed: agent timed out (300s), was cancelled, or failed to start."
+                    )
                 }
             }
         }
@@ -156,6 +339,23 @@ enum LearnScheduler {
         lock.lock(); defer { lock.unlock() }
         current?.terminate()
         current = nil
+    }
+
+    /// Lịch học tự động: timer lặp gọi runNow (runNow tự bỏ qua khi đang
+    /// học hoặc không có case mới). Timer chạy trên main runloop.
+    private static var autoTimer: Timer?
+    static var isAuto: Bool { autoTimer != nil }
+
+    static func startAuto(state: AppState, interval: TimeInterval) {
+        stopAuto()
+        autoTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            runNow(state: state)
+        }
+    }
+
+    static func stopAuto() {
+        autoTimer?.invalidate()
+        autoTimer = nil
     }
 
     private static func runAgent(batch: [String], timeout: TimeInterval) -> (Data?, String) {
@@ -175,9 +375,9 @@ enum LearnScheduler {
         \(casesText)
         </CASES>
         """
-        let args = ["-p", "--model", "opus-5.5",
+        let args = ["-p", "--model", "opus",
                     "--allowedTools", "WebSearch WebFetch",
-                    "--no-mcp", "--no-session-persistence", "--no-user-settings",
+                    "--safe-mode", "--strict-mcp-config", "--no-session-persistence",
                     "--output-format", "json", prompt]
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -186,6 +386,7 @@ enum LearnScheduler {
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = FileHandle.nullDevice
+        p.standardInput = FileHandle.nullDevice
         lock.lock(); current = p; lock.unlock()
         do { try p.run() } catch { return (nil, "") }
         let deadline = Date().addingTimeInterval(timeout)
@@ -243,6 +444,21 @@ struct LearnStore {
         (try? String(contentsOf: load().rulesURL)) ?? ""
     }
 
+    /// JSON kho case cho RAG, cache theo mtime (scan gọi mỗi giây nên
+    /// không đọc file mỗi lần; ghi qua writeCasesJSON tự vô hiệu cache).
+    private static var casesCache: (Date, String)?
+
+    static func loadCasesJSON() -> String {
+        let url = load().casesURL
+        let mtime = (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? .distantPast
+        if let c = casesCache, c.0 == mtime { return c.1 }
+        let s = (try? String(contentsOf: url)) ?? ""
+        casesCache = (mtime, s)
+        return s
+    }
+
+    static func invalidateCasesCache() { casesCache = nil }
+
     // -- Case (ngữ nghĩa do lõi sở hữu qua FFI; Swift chỉ giữ file) ----
     private func readCasesJSON() -> String {
         (try? String(contentsOf: casesURL)) ?? ""
@@ -250,6 +466,7 @@ struct LearnStore {
 
     private func writeCasesJSON(_ s: String) {
         try? s.write(to: casesURL, atomically: true, encoding: .utf8)
+        Self.invalidateCasesCache()
     }
 
     /// Lưu case cho mỗi lần kiểm tra có điểm ≥ 15 hoặc mọi lần thủ công.
@@ -302,7 +519,7 @@ struct LearnStore {
               let rules = json["rules"] as? [[String: Any]]
         else { return }
         let on = rules.filter { ($0["enabled"] as? Bool) ?? true }.count
-        state.rulesSummary = "Kho luật: \(on)/\(rules.count) đang bật."
+        state.rulesSummary = L("Kho luật: \(on)/\(rules.count) đang bật.", "Rule store: \(on)/\(rules.count) enabled.")
     }
 
     /// Snapshot trước mỗi lần cập nhật (giữ 20 bản).
@@ -338,7 +555,10 @@ struct LearnStore {
               let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
               let proposals = json["rules"] as? [[String: Any]]
         else {
-            state.lastReport = "Vòng học thất bại: output agent không phải JSON."
+            state.lastReport = L(
+                "Vòng học thất bại: output agent không phải JSON.",
+                "Learning round failed: agent output is not JSON."
+            )
             return
         }
         var added: [String] = [], rejected: [String] = []
@@ -360,15 +580,15 @@ struct LearnStore {
         snapshot()
         try? rulesJSON.write(to: rulesURL, atomically: true, encoding: .utf8)
         let rep = json["report"] as? [String: Any] ?? [:]
-        let tokLine = usage.isEmpty ? "" : "Token agent: \(usage)\n"
+        let tokLine = usage.isEmpty ? "" : "\(L("Token agent", "Agent tokens")): \(usage)\n"
         let report = """
-        BÁO CÁO VÒNG HỌC \(Date())
-        Tổng quan: \(rep["overview"] as? String ?? "")
-        Báo nhầm có thể: \(rep["false_positives"] as? String ?? "")
-        Lừa đảo có thể bị sót: \(rep["missed"] as? String ?? "")
-        Xu hướng mới: \(rep["trends"] as? String ?? "")
-        Đã thêm (\(added.count)): \(added.joined(separator: ", "))
-        Bị loại (\(rejected.count)): \(rejected.joined(separator: ", "))
+        \(L("BÁO CÁO VÒNG HỌC", "LEARNING ROUND REPORT")) \(Date())
+        \(L("Tổng quan", "Overview")): \(rep["overview"] as? String ?? "")
+        \(L("Báo nhầm có thể", "Possible false positives")): \(rep["false_positives"] as? String ?? "")
+        \(L("Lừa đảo có thể bị sót", "Possibly missed scams")): \(rep["missed"] as? String ?? "")
+        \(L("Xu hướng mới", "New trends")): \(rep["trends"] as? String ?? "")
+        \(L("Đã thêm", "Added")) (\(added.count)): \(added.joined(separator: ", "))
+        \(L("Bị loại", "Rejected")) (\(rejected.count)): \(rejected.joined(separator: ", "))
         \(tokLine)
         """
         let stamp = Int(Date().timeIntervalSince1970)
@@ -387,7 +607,8 @@ enum SelfTest {
         func check(_ text: String, _ min: UInt32, _ max: UInt32, _ label: String) {
             let r = scanText(text: text, appId: "selftest",
                              flags: FfiScanFlags(remoteAppRunning: false, inCall: false,
-                                                 bankAppOpen: false, learnedJson: "", blacklistJson: ""))
+                                                 bankAppOpen: false, learnedJson: "", blacklistJson: "", casesJson: ""),
+                             lang: .vi)
             let pass = r.score >= min && r.score <= max
             print("selftest \(label): \(r.score) \(pass ? "ĐẠT" : "HỎNG")")
             if !pass { ok = false }
@@ -427,8 +648,27 @@ enum SelfTest {
         let dup = learnAddRule(rulesJson: kho, ruleJson: "{\"id\":\"T2\",\"reason\":\"r\",\"weight\":10,\"phrases\":[\"hoan tien hoc phi\"],\"domains\":[],\"phones\":[],\"enabled\":true}")
         expect(dup.contains("error"), "luat-trung")
         // Lệnh claude cô lập.
-        let cmd = claudeCommandArgs(model: "m", task: .summarize, redacted: "[SĐT]")
-        expect(cmd.bin == "claude" && cmd.args.contains("--no-mcp"), "claude-lenh")
+        let cmd = claudeCommandArgs(model: "m", task: .summarize, redacted: "[SĐT]", lang: .vi)
+        expect(cmd.bin == "claude" && cmd.args.contains("--safe-mode"), "claude-lenh")
+        let gem = geminiCommandArgs(model: "", task: .summarize, redacted: "[SĐT]", lang: .vi)
+        expect(gem.bin == "gemini" && gem.args.contains("-p") && !gem.args.contains("-m"), "gemini-lenh")
+        let agy = agyCommandArgs(model: "", task: .summarize, redacted: "[SĐT]", lang: .vi)
+        expect(agy.bin == "agy" && agy.args.contains("--output-format"), "agy-lenh")
+        // RAG: 2 case tương tự từng bị gắn lừa đảo → +15 điểm + lý do.
+        let ragQ = "công an gọi đòi chuyển tiền gấp vào tài khoản an toàn"
+        let noRag = scanText(text: ragQ, appId: "selftest",
+                             flags: FfiScanFlags(remoteAppRunning: false, inCall: false,
+                                                 bankAppOpen: false, learnedJson: "", blacklistJson: "", casesJson: ""),
+                             lang: .vi)
+        let ragStore = """
+        {"cases":[{"text":"công an yêu cầu chuyển tiền gấp vào tài khoản an toàn nhé bạn ơi","app_id":"t","score":85,"verdict":true,"reasons":[]},{"text":"công an yêu cầu chuyển tiền gấp vào tài khoản an toàn nhé bạn à","app_id":"t","score":85,"verdict":true,"reasons":[]},{"text":"chúc mừng trúng thưởng","app_id":"t","score":10,"verdict":false,"reasons":[]}]}
+        """
+        let ragged = scanText(text: ragQ, appId: "selftest",
+                              flags: FfiScanFlags(remoteAppRunning: false, inCall: false,
+                                                  bankAppOpen: false, learnedJson: "", blacklistJson: "", casesJson: ragStore),
+                              lang: .vi)
+        expect(ragged.score == min(noRag.score + 15, 100)
+            && ragged.reasons.contains(where: { $0.contains("case tương tự") }), "rag")
         _ = state
         return ok
     }
@@ -446,7 +686,8 @@ enum SelfTest {
         let sample = "thông báo hoàn tiền đặt cọc khóa học cho học viên"
         let base = scanText(text: sample, appId: "selftest",
                             flags: FfiScanFlags(remoteAppRunning: false, inCall: false,
-                                                bankAppOpen: false, learnedJson: "", blacklistJson: ""))
+                                                bankAppOpen: false, learnedJson: "", blacklistJson: "", casesJson: ""),
+                            lang: .vi)
         print("selftest-learn điểm gốc: \(base.score)")
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: agentOutputPath)) else {
             print("selftest-learn: không đọc được agent output mẫu"); return false
@@ -455,7 +696,8 @@ enum SelfTest {
         let rulesJSON = LearnStore.loadRulesJSON()
         let boosted = scanText(text: sample, appId: "selftest",
                                flags: FfiScanFlags(remoteAppRunning: false, inCall: false,
-                                                   bankAppOpen: false, learnedJson: rulesJSON, blacklistJson: ""))
+                                                   bankAppOpen: false, learnedJson: rulesJSON, blacklistJson: "", casesJson: ""),
+                               lang: .vi)
         print("selftest-learn điểm sau học: \(boosted.score)")
         if boosted.score <= base.score { print("selftest-learn tăng điểm: HỎNG"); ok = false }
         else { print("selftest-learn tăng điểm: ĐẠT") }

@@ -63,7 +63,8 @@ final class Hotkeys {
             var ref_: EventHotKeyRef?
             let id = EventHotKeyID(signature: OSType(0x41494141), id: hid)
             let err = RegisterEventHotKey(key, mods, id, GetApplicationEventTarget(), 0, &ref_)
-            NSLog("AiAssistant hotkey id=\(hid) err=\(err)")
+            NSLog("SiAssitant hotkey id=\(hid) err=\(err)")
+            DiagLog.line("hotkey register id=\(hid) err=\(err)")
             refs.append(ref_)
             actions[hid] = action
             let _ = task
@@ -97,11 +98,12 @@ final class Hotkeys {
     }
 
     fileprivate static func dispatch(id: UInt32) {
-        NSLog("AiAssistant hotkey pressed id=\(id)")
+        NSLog("SiAssitant hotkey pressed id=\(id)")
         // Task suy từ id; gọi trên main để an toàn UI.
         let task: AiTask = (id == 2 || id == 12) ? .translate
             : (id == 3 || id == 13) ? .solve
             : (id == 4 || id == 14) ? .scamCheck : .summarize
+        DiagLog.line("hotkey pressed id=\(id) task=\(task) hasAction=\(actions[id] != nil)")
         DispatchQueue.main.async { actions[id]?(task) }
     }
 }
