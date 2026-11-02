@@ -1,4 +1,15 @@
-# SiAssistant — Trợ lý AI đọc màn hình & chống lừa đảo
+# SiAssistant — Screen-reading AI assistant & scam shield
+
+macOS + Android app: reads on-screen content, warns about scams
+on-device (0 tokens), calls AI to summarize / translate / solve when needed.
+Vietnamese UI, one shared Rust core for both platforms.
+
+3-minute demo video: `SiAssistant-demo-3min.mp4` (with `.srt` subtitles).
+
+> 🌐 **Language:** English (below) · 🇻🇳 Tiếng Việt (nhấn để mở bên dưới)
+
+<details>
+<summary>🇻🇳 <b>Bản tiếng Việt</b> (click to expand)</summary>
 
 Ứng dụng macOS + Android: đọc nội dung trên màn hình, cảnh báo lừa đảo
 ngay trên máy (0 token), nhờ AI tóm tắt / dịch / giải đề khi cần.
@@ -140,3 +151,148 @@ cd macos && swift test -Xlinker -L$PWD/../target/debug  # parser CLI, model, ver
 3. Ảnh chụp màn hình chỉ ở RAM, không ghi đĩa.
 4. Key chỉ ở Keychain/Keystore + RAM; không log key/prompt thô.
 5. Case trong query tìm kiếm của agent bị cấm (prompt vòng học).
+
+</details>
+
+## Features
+
+- **Realtime offline scam protection:** scans screen text every second,
+  scores 0–100 from keyword groups + entities (links/phones/bank
+  accounts) + dangerous combos; ≥70 → red alert, 35–69 → suspicious.
+- **Built-in RAG:** confirmed past cases vote on new text — paraphrased
+  scam messages are still caught with no new keyword match.
+- **Auto-learn loop:** collects pending cases, an agent proposes weighted
+  rules, the core moderates each proposal; snapshots + undo supported.
+- **One-hotkey AI tasks:** summarize, translate, solve, analyze — always
+  bundled with a scam check (FR-13); PII double-redacted before leaving
+  the device.
+- **5 AI backends** (menu-selectable, remembered) — see below.
+
+## Architecture
+
+Principle: **only Swift/Kotlin call into the Rust core; the core is the
+sole owner** of scoring, PII redaction, rule moderation, prompt building
+and AI HTTP calls. Platforms do I/O only (capture, OCR, hotkeys,
+overlays, file storage).
+
+```text
+macOS (Swift)                    Android (Kotlin)
+ScreenCaptureKit + Vision        AccessibilityService + NotificationListener
+Carbon hotkeys, menu-bar         ML Kit OCR (fallback), red overlay
+Floating NSPanel                 AI floating button
+        │ UniFFI                        │ UniFFI
+        └──────────────┬────────────────┘
+                       ▼
+        ┌──────────────────────────────┐
+        │ Rust core (aiassist-core)    │
+        │ scoring · PII · learned rules│
+        │ AI backends · case store     │
+        └──────────────────────────────┘
+```
+
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (module ownership,
+17-function FFI contract, data flows, privacy boundaries),
+[docs/SCORING_SPEC.md](docs/SCORING_SPEC.md) (keyword groups, combos,
+thresholds), [docs/HACKATHON_DEMO.md](docs/HACKATHON_DEMO.md) (5-minute
+demo script + fixtures; the first two docs are in Vietnamese).
+
+## Layout
+
+- [core/](core/) — shared Rust core via UniFFI 0.28: `scoring`,
+  `rules` (keywords, brands, app lists), `entities` (URL/phone/account/
+  email extraction), `normalize` (Vietnamese normalization, Jaccard),
+  `pii` (redaction), `learned` (learned-rule moderation), `store`
+  (JSON-stateless case store), `backends` (prompts, Messages API, CLI
+  commands).
+- [macos/](macos/) — menu-bar app (SwiftPM, macOS 14+): Carbon hotkeys
+  (⌘⇧7/8/9/0, fallback ⌃⌥S/T/G/K), focus-stealing-free floating panel,
+  3-tab debug window, `--selftest`. Swift bindings generated into
+  `macos/Generated/`.
+- [android/](android/) — sideload app (API 26+, Compose): 600ms debounce,
+  red alert overlay, AI floating button. Kotlin bindings in
+  `app/src/main/java/aiassist/uniffi/`.
+- [diagrams/](diagrams/) — architecture, task-flow and auto-learn diagrams
+  (`.mmd` + `.png`/`.svg`).
+- `Dockerfile` — build core + Android in Docker (SDK 35,
+  NDK 27.0.12077973, Gradle 8.10). The `buildRust` task runs cargo-ndk
+  for 3 ABIs.
+- `scripts/regen-bindings.sh` — regenerate Swift/Kotlin bindings after
+  any FFI change.
+
+## AI backends
+
+1. **Muse/Meta via API key** — default: `POST {base}/messages`, key in
+   Keychain/Keystore (RAM-only at call time), configurable base URL +
+   model. Keys from dev.meta.ai (Model API section), default model
+   `muse-spark-1.3`.
+2. **Claude Code CLI** — isolated (`--allowedTools ""`, `--safe-mode`,
+   `--strict-mcp-config`, `--no-session-persistence`, temp dir).
+3. **Gemini CLI** (`gemini -p`, JSON; log in via the CLI first).
+4. **Antigravity** (`agy -p`, JSON; shares the app login, no separate
+   key). Install: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
+5. **Anthropic API** via key (macOS menu).
+
+Reasoning levels: low (summarize/translate), medium (analyze), high
+(solve). Token prices (USD/MTok) are passed per call by the platform.
+
+## Requirements
+
+- macOS 14+, Xcode/Swift toolchain, stable Rust.
+- Android: only a Docker daemon (builds inside the container).
+- macOS permissions: Screen Recording + Accessibility — the OS doesn't
+  let apps trigger the prompt themselves; add the app via the `+` button
+  in Settings. Ad-hoc signature → re-grant after every build; releases
+  need a fixed certificate.
+
+## Build & run
+
+```bash
+# Regenerate bindings after any core FFI change:
+/scripts/regen-bindings.sh
+
+# macOS
+cd macos && swift build -Xlinker -L$PWD/../target/debug
+export DYLD_LIBRARY_PATH=$PWD/../target/debug AIASSIST_DATA_DIR=/tmp/st-data
+.build/debug/AiAssistant --selftest   # checks over the real FFI
+```
+
+Diagnostics: `--probe-capture` (screen permission + OCR chars),
+`--probe-ai <backend> <task> <model|-> <text>` (headless real AI),
+`--probe-monitor <seconds>` (live monitor ticks),
+log at `~/Library/Logs/SiAssitant/debug.log`.
+User data lives in `~/Library/Application Support/AiAssistant/`
+(override with `AIASSIST_DATA_DIR` for selftests).
+
+```bash
+# Android (needs Docker daemon)
+docker build -t aiassist-builder .
+docker run --rm -v "$PWD:/work" -v aiassist-cargo:/root/.cargo \
+  -v aiassist-gradle:/root/.gradle \
+  -e ANDROID_NDK_HOME=/opt/android-sdk/ndk/27.0.12077973 aiassist-builder \
+  bash -c 'cd /work/android && gradle assembleDebug'
+# → android/app/build/outputs/apk/debug/app-debug.apk (bundled .so, 3 ABIs)
+```
+
+## Testing
+
+```bash
+# Sandbox blocks ~/.cargo and sockets: point CARGO_HOME somewhere writable
+export CARGO_HOME=/tmp/cargo-home
+cargo test -p aiassist-core --lib   # claude/gemini/agy commands, PII, scoring, bilingual, RAG...
+cargo clippy --all-targets -- -D warnings   # must be clean (acceptance gate)
+
+cd macos && swift test -Xlinker -L$PWD/../target/debug  # CLI parsers, verdicts, RAG FFI...
+.build/debug/AiAssistant --selftest                     # 85/75/45/15 samples + PII + case store + learned rules
+.build/debug/AiAssistant --selftest-learn-local /tmp/learn-sample.json  # mocked learning loop
+```
+
+## Privacy
+
+1. Sensitive apps: blocked early at the platform (no read/capture) + the
+   core scores 0.
+2. Two-layer PII redaction: the platform redacts before AI calls, the
+   core re-redacts inside `messages_call`/`store_add_case`.
+3. Screenshots stay in RAM, never touch disk.
+4. Keys live only in Keychain/Keystore + RAM; no logging of keys or raw
+   prompts.
+5. Cases are banned from agent search queries (learning-loop prompt).
