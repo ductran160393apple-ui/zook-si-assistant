@@ -1,0 +1,13 @@
+graph TD
+    A["Bấm phím tắt / nút menu"] --> B["Chụp cửa sổ + OCR (20s)"]
+    B --> C{"Đọc được chữ?"}
+    C -- "Không" --> G["Panel Hướng dẫn"]
+    C -- "Có" --> D["Che PII + chấm điểm 0-100"]
+    D --> E{"Điểm từ 35 trở lên?"}
+    E -- "Có" --> W["Dải cảnh báo đỏ"]
+    E -- "Không" --> F{"Tác vụ?"}
+    W --> F
+    F -- "Kiểm tra lừa đảo (0 token AI)" --> R["Panel kết quả"]
+    F -- "Tóm tắt / Dịch / Giải / Phân tích" --> H["Gọi backend AI đã chọn"]
+    H --> R
+    R --> S["Lưu case + nút Đúng / Báo nhầm"]

@@ -1,0 +1,25 @@
+graph TD
+    subgraph APP["macOS (Swift)"]
+        UI["Menu-bar + NSPanel kính"]
+        CAP["Chụp màn hình + OCR"]
+        KEY["Keychain (API key)"]
+    end
+    subgraph DROID["Android (Kotlin)"]
+        ACC["Accessibility + overlay"]
+    end
+    subgraph CORE["Lõi Rust (UniFFI, nguồn duy nhất)"]
+        SCAN["Chấm điểm 0-100 + che PII"]
+        ROUTE["Điều phối 5 backend AI"]
+        LEARN["Kho case + luật học"]
+    end
+    USER(["Người dùng"]) --> UI
+    USER --> ACC
+    UI --> CAP
+    CAP --> SCAN
+    ACC --> SCAN
+    SCAN --> ROUTE
+    ROUTE --> META["Muse/Meta API (mặc định)"]
+    ROUTE --> CLI["Claude / Gemini / agy CLI"]
+    ROUTE --> ANTH["Anthropic API (dự phòng)"]
+    SCAN --> LEARN
+    UI --> KEY

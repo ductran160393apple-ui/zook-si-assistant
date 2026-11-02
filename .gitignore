@@ -3,6 +3,7 @@
 **/.gradle/
 *.apk
 *.aab
+*.app/
 .DS_Store
 .env
 *.keystore
@@ -60,3 +61,14 @@ macos/CAiAssistCore/aiassist_coreFFI.h
 /scripts/workflow-compliance.js
 /scripts/workflow-gate.js
 # <<< ductm-ai <<<
+.gstack/
+# File backup (*.bak.*) do tool sync ductm-ai sinh ra — không commit.
+*.bak
+*.bak.*
+# Video demo (file lớn, không commit).
+*.mp4
+*.mov
+# Phụ đề đi kèm video demo.
+*.srt
+# Log local khi chạy/debug.
+*.log

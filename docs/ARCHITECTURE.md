@@ -1,4 +1,4 @@
-# Kiến trúc SiAssistant
+# Kiến trúc SiAssitant
 
 Trợ lý AI đọc màn hình và chống lừa đảo (macOS + Android, giao diện tiếng Việt).
 Tài liệu này là đề xuất kiến trúc chuẩn sau đợt review 2026-10-27:
@@ -34,7 +34,7 @@ Tài liệu này là đề xuất kiến trúc chuẩn sau đợt review 2026-10
 | Dedup case, verdict, pending | Lõi (`store`) | Jaccard ≥ 0.8, JSON-stateless qua FFI |
 | Prompt, timeout, trần token | Lõi (`backends`) | `system_prompt`, `task_timeout_secs`, `task_max_tokens` |
 | HTTP Messages API + retry | Lõi (`backends`) | `messages_call` (blocking) |
-| Lệnh `claude -p` cô lập | Lõi dựng, Swift thực thi | `claude_command_args` |
+| Lệnh CLI một phát (`claude`/`gemini`/`agy`) | Lõi dựng, Swift thực thi | `*_command_args` |
 | Danh sách app (nhạy cảm/remote/bank) | Lõi (`rules`) | `is_*_app` — nguồn duy nhất |
 | Thu thập chữ, UI, hotkey, overlay | Nền tảng | Swift/Kotlin |
 | Lưu file (cases/rules/versions) | Nền tảng | Lõi chỉ xử lý JSON, không giữ file |
@@ -111,13 +111,16 @@ pending (chưa verdict, ≤60) → agent (nền, timeout 300s, hủy được)
 
 | Backend | macOS | Android |
 |---|---|---|
-| Claude Code CLI (mặc định) | Có | Không |
-| Meta Messages API (key) | Có | Có (duy nhất) |
+| Meta Messages API (key, mặc định) | Có | Có (duy nhất) |
+| Claude Code CLI | Có | Không |
+| Gemini CLI (`gemini -p`, JSON) | Có | Không |
+| Antigravity (`agy -p`, JSON, chung login app) | Có | Không |
 | Anthropic Messages API (key) | Có | Không |
-| Gemini Argon | Stub, ẩn khỏi UI | Không |
 
 Giá token (USD/MTok) do nền tảng truyền vào mỗi cuộc gọi (Meta
-0.00015/0.0006, Anthropic 0.003/0.015).
+1.25/4.25 (Muse Spark standard), Anthropic 0.003/0.015).
+Chuẩn giao thức: [Messages API](https://dev.meta.ai/docs/protocols/messages)
+(Anthropic-compatible), model mặc định muse-spark-1.3 theo cookbook chính thức.
 
 ## 8. Binding và build
 

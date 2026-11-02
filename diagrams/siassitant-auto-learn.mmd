@@ -1,0 +1,16 @@
+graph LR
+    T["Nhịp 1 giây / đổi app quét ngay"] --> I{"Idle quá 60s?"}
+    I -- "Có" --> T
+    I -- "Không" --> C["Chụp + so thumbnail 16x16"]
+    C --> M{"Màn hình đổi?"}
+    M -- "Không" --> T
+    M -- "Có" --> O["OCR + chấm điểm (0 token)"]
+    O --> D{"Mức dangerous?"}
+    D -- "Có" --> W["Panel + icon đỏ + AI (chống lặp 2p)"]
+    D -- "Không" --> CLR["Cập nhật panel realtime + xóa cũ"]
+    CLR --> A{"Ổn định 8s + đủ 300 chữ?"}
+    W --> A
+    A -- "Không" --> T
+    A -- "Có, cách nhau 60s" --> AI["Gọi AI phân tích"]
+    B["Nút Chạy học ngay"] --> L["Vòng học: 60 case, agent Claude, tối đa 15 luật"]
+    AI --> L
