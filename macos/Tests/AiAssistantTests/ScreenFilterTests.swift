@@ -25,6 +25,7 @@ struct ScreenFilterTests {
         #expect(!ScreenReader.keepApp(bundleID: "com.apple.dock", ownBundle: own))
         #expect(!ScreenReader.keepApp(bundleID: "com.apple.controlcenter", ownBundle: own))
         #expect(!ScreenReader.keepApp(bundleID: "com.apple.notificationcenterui", ownBundle: own))
+        #expect(!ScreenReader.keepApp(bundleID: "com.apple.WindowManager", ownBundle: own))
     }
 
     @Test func bundleRongBiLoai() {

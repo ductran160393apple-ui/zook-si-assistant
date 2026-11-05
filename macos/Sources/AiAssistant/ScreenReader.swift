@@ -16,16 +16,56 @@ enum ScreenReader {
     static var tccBlocked = false
 
     /// Bundle id app đang ở phía trước + text OCR được (nil nếu app nhạy cảm).
+    /// Thử tối đa 3 cửa sổ lớn nhất (ưu tiên app trước mặt, lấy cửa sổ đầu
+    /// có chữ): cửa sổ lớn nhất đôi khi là desktop nền trống hoặc ảnh chụp
+    /// trắng thoáng qua — thử tiếp thay vì báo rỗng ngay. Dùng chung bộ
+    /// chọn + kích thước chụp rõ ràng của đường auto-monitor đã kiểm chứng.
     static func captureFrontWindow() async -> (app: String, text: String)? {
-        guard let (app, image) = await captureFrontImage() else { return nil }
-        return (app, ocr(image))
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let ownBundle = Bundle.main.bundleIdentifier
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+            true,
+            onScreenWindowsOnly: true
+        ) else { return nil }
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
+        if !front.isEmpty, front != ownBundle, isSensitive(front) { return nil }
+        let kept = keptWindows(in: content, ownPID: ownPID, ownBundle: ownBundle)
+        guard !kept.isEmpty else {
+            guard let (app, image) = await captureFullScreenImage(excludingOwnPID: ownPID, content: content) else { return nil }
+            return (app: app, text: ocr(image))
+        }
+        let ordered: [SCWindow]
+        if !front.isEmpty, front != ownBundle {
+            ordered = kept.filter { $0.owningApplication?.bundleIdentifier == front }
+                + kept.filter { $0.owningApplication?.bundleIdentifier != front }
+        } else {
+            ordered = kept
+        }
+        var first: (app: String, text: String)?
+        var tried: [String] = []
+        for w in ordered.prefix(3) {
+            guard let img = try? await captureWindowImage(w) else { continue }
+            let appID = w.owningApplication?.bundleIdentifier ?? ""
+            let text = ocr(img)
+            tried.append("\(appID):\(img.width)x\(img.height)=\(text.count)")
+            if first == nil { first = (app: appID, text: text) }
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                DiagLog.line("manual: front=\(front.isEmpty ? "-" : front) thử=[\(tried.joined(separator: " "))]")
+                return (app: appID, text: text)
+            }
+        }
+        DiagLog.line("manual: front=\(front.isEmpty ? "-" : front) trắng cả [\(tried.joined(separator: " "))]")
+        return first
     }
 
     /// Cửa sổ hệ thống không bao giờ là mục tiêu (từng bị chụp nhầm).
+    /// WindowManager (nền/backdrop toàn màn hình) to nhất nên luôn đứng đầu
+    /// khi xếp theo diện tích, che mất cửa sổ nội dung thật.
     private static let systemBundles: Set<String> = [
         "com.apple.dock",
         "com.apple.controlcenter",
         "com.apple.notificationcenterui",
+        "com.apple.WindowManager",
     ]
 
     /// Quyết định giữ app trong ảnh toàn màn hình (hàm thuần, có unit
@@ -51,7 +91,7 @@ enum ScreenReader {
         let content: SCShareableContent
         do {
             content = try await SCShareableContent.excludingDesktopWindows(
-                false,
+                true,
                 onScreenWindowsOnly: true
             )
         } catch {
@@ -141,42 +181,6 @@ enum ScreenReader {
         )
     }
 
-    /// Chụp ảnh thô (chưa OCR) để auto-monitor so thumbnail trước khi OCR.
-    static func captureFrontImage() async -> (app: String, image: CGImage)? {
-        let ownPID = ProcessInfo.processInfo.processIdentifier
-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
-            false,
-            onScreenWindowsOnly: true
-        ) else { return nil }
-
-        // Danh sách windows không theo thứ tự z và chứa cửa sổ hệ thống →
-        // ưu tiên cửa sổ LỚN NHẤT của app đang ở phía trước (current view).
-        let ownBundle = Bundle.main.bundleIdentifier
-        let cands = content.windows.filter {
-            $0.owningApplication?.processID != ownPID
-                && $0.frame.width > 1 && $0.frame.height > 1
-                && !(systemBundles.contains($0.owningApplication?.bundleIdentifier ?? ""))
-        }
-        var win: SCWindow?
-        if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
-           !front.isEmpty, front != ownBundle
-        {
-            win = cands.filter { $0.owningApplication?.bundleIdentifier == front }
-                .max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
-        }
-        if win == nil { win = cands.first }
-        guard let win else {
-            return await captureFullScreenImage(excludingOwnPID: ownPID, content: content)
-        }
-        let appID = win.owningApplication?.bundleIdentifier ?? ""
-        guard !isSensitive(appID) else { return nil }
-        guard let image = try? await SCScreenshotManager.captureImage(
-            contentFilter: SCContentFilter(desktopIndependentWindow: win),
-            configuration: streamConfig(scale: 2)
-        ) else { return nil }
-        return (appID, image)
-    }
-
     /// Dự phòng khi không thấy cửa sổ nào (hiếm). Fails closed.
     private static func captureFullScreenImage(
         excludingOwnPID ownPID: pid_t,
@@ -220,18 +224,6 @@ enum ScreenReader {
         var sum = 0.0
         for i in a.indices { sum += Double(abs(Int(a[i]) - Int(b[i]))) }
         return sum / Double(a.count)
-    }
-
-    private static func streamConfig(scale: Int) -> SCStreamConfiguration {
-        let c = SCStreamConfiguration()
-        c.pixelFormat = kCVPixelFormatType_32BGRA
-        c.showsCursor = false
-        c.scalesToFit = false
-        if scale <= 1 {
-            c.width = 0  // 1x: giữ phân giải gốc cho OCR auto
-            c.height = 0
-        }
-        return c
     }
 
     /// OCR ngay trên máy (Vision). Public để auto-monitor OCR sau khi so thumbnail.
