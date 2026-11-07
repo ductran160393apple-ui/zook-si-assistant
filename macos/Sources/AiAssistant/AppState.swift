@@ -120,6 +120,15 @@ final class AppState: ObservableObject {
     @Published var lastReport: String = UserDefaults.standard.string(forKey: "appLang") == "en"
         ? "No learning report yet." : "Chưa có báo cáo vòng học."
     var lastScan: LastScan?
+    // Trạng thái giám sát mạng (NetMonitor tick 60s, riêng alertLevel scam).
+    @Published var netLevel: String = "safe"
+    @Published var netSummary: String = ""
+    @Published var netTop: String = ""
+    @Published var netLlmVerdict: String = ""
+    @Published var netDetect: Bool = UserDefaults.standard.object(forKey: "netDetect") as? Bool ?? true
+    @Published var netLlmEnabled: Bool = UserDefaults.standard.object(forKey: "netLlmEnabled") as? Bool ?? true
+    @Published var netLlmBase: String = UserDefaults.standard.string(forKey: "netLlmBase") ?? "http://127.0.0.1:11434/v1"
+    @Published var netLlmModel: String = UserDefaults.standard.string(forKey: "netLlmModel") ?? "llama3.2"
 
     func log(app: String, score: UInt32, level: String, reasons: [String], tokens: String) {
         entries.append(ScanEntry(app: app, score: score, level: level, reasons: reasons, tokens: tokens))

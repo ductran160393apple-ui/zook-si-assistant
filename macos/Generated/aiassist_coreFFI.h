@@ -301,6 +301,31 @@ RustBuffer uniffi_aiassist_core_fn_func_messages_call(RustBuffer c, RustCallStat
 RustBuffer uniffi_aiassist_core_fn_func_moderate_rule(RustBuffer rule_json, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_EVALUATE
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_EVALUATE
+RustBuffer uniffi_aiassist_core_fn_func_net_evaluate(RustBuffer snapshot_json, RustBuffer lang, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_LLM_CALL
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_LLM_CALL
+RustBuffer uniffi_aiassist_core_fn_func_net_llm_call(RustBuffer base_url, RustBuffer model, RustBuffer system, RustBuffer user, uint64_t timeout_secs, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_LLM_SYSTEM_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_LLM_SYSTEM_PROMPT
+RustBuffer uniffi_aiassist_core_fn_func_net_llm_system_prompt(RustBuffer lang, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_LLM_USER_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_LLM_USER_PROMPT
+RustBuffer uniffi_aiassist_core_fn_func_net_llm_user_prompt(RustBuffer verdict_json, RustBuffer lang, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_NEEDS_LLM
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_NET_NEEDS_LLM
+int8_t uniffi_aiassist_core_fn_func_net_needs_llm(RustBuffer verdict_json, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_REDACT_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_FN_FUNC_REDACT_TEXT
 RustBuffer uniffi_aiassist_core_fn_func_redact_text(RustBuffer text, RustCallStatus *_Nonnull out_status
@@ -683,6 +708,36 @@ uint16_t uniffi_aiassist_core_checksum_func_messages_call(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_MODERATE_RULE
 #define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_MODERATE_RULE
 uint16_t uniffi_aiassist_core_checksum_func_moderate_rule(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_EVALUATE
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_EVALUATE
+uint16_t uniffi_aiassist_core_checksum_func_net_evaluate(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_LLM_CALL
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_LLM_CALL
+uint16_t uniffi_aiassist_core_checksum_func_net_llm_call(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_LLM_SYSTEM_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_LLM_SYSTEM_PROMPT
+uint16_t uniffi_aiassist_core_checksum_func_net_llm_system_prompt(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_LLM_USER_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_LLM_USER_PROMPT
+uint16_t uniffi_aiassist_core_checksum_func_net_llm_user_prompt(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_NEEDS_LLM
+#define UNIFFI_FFIDEF_UNIFFI_AIASSIST_CORE_CHECKSUM_FUNC_NET_NEEDS_LLM
+uint16_t uniffi_aiassist_core_checksum_func_net_needs_llm(void
     
 );
 #endif

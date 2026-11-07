@@ -491,7 +491,7 @@ enum LogTime {
     static func string(from date: Date) -> String { fmt.string(from: date) }
 }
 
-/// Cửa sổ debug 3 tab: Nhật ký / Kho luật / Báo cáo. Nền kính xuyên thấu
+/// Cửa sổ debug 4 tab: Nhật ký / Kho luật / Báo cáo / Mạng. Nền kính xuyên thấu
 /// (GlassBackground, cùng kiểu với panel kết quả).
 struct DebugWindow: View {
     @ObservedObject var state: AppState
@@ -523,6 +523,36 @@ struct DebugWindow: View {
             ScrollView { Text(state.lastReport).font(.caption) }
                 .padding()
                 .tabItem { Text(L("Báo cáo", "Report")) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(L("Mức", "Level")): \(state.netLevel)").bold()
+                    Text(state.netSummary.isEmpty ? L("Chưa quét.", "Not scanned yet.") : state.netSummary).font(.caption)
+                    Text(state.netTop).font(.caption).foregroundColor(.secondary)
+                    Divider()
+                    Toggle(L("Bật giám sát mạng (60s)", "Enable net monitor (60s)"), isOn: Binding(
+                        get: { state.netDetect },
+                        set: { state.netDetect = $0; UserDefaults.standard.set($0, forKey: "netDetect") }
+                    )).font(.caption)
+                    Toggle(L("LLM on-device hiệu đính", "On-device LLM review"), isOn: Binding(
+                        get: { state.netLlmEnabled },
+                        set: { state.netLlmEnabled = $0; UserDefaults.standard.set($0, forKey: "netLlmEnabled") }
+                    )).font(.caption)
+                    TextField("Base URL (Ollama /v1)", text: Binding(
+                        get: { state.netLlmBase },
+                        set: { state.netLlmBase = $0; UserDefaults.standard.set($0, forKey: "netLlmBase") }
+                    )).font(.caption).textFieldStyle(.roundedBorder)
+                    TextField(L("Model (vd: llama3.2)", "Model (e.g. llama3.2)"), text: Binding(
+                        get: { state.netLlmModel },
+                        set: { state.netLlmModel = $0; UserDefaults.standard.set($0, forKey: "netLlmModel") }
+                    )).font(.caption).textFieldStyle(.roundedBorder)
+                    if !state.netLlmVerdict.isEmpty {
+                        Text(L("LLM hiệu đính:", "LLM review:")).bold().font(.caption)
+                        Text(state.netLlmVerdict).font(.caption)
+                    }
+                }
+                .padding()
+            }
+            .tabItem { Text(L("Mạng", "Net")) }
         }
         .foregroundColor(PanelColor.textColor(hex: state.debugTextColorHex))
         .frame(width: 640, height: 480)

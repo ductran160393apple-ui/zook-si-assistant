@@ -1426,6 +1426,64 @@ public func moderateRule(ruleJson: String) -> String {
 })
 }
 /**
+ * Đánh giá snapshot traffic mạng (JSON) ra verdict + baseline mới.
+ * Không thất bại: JSON hỏng trả {"error": ...}, snapshot rỗng trả safe.
+ */
+public func netEvaluate(snapshotJson: String, lang: AiLang) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_aiassist_core_fn_func_net_evaluate(
+        FfiConverterString.lower(snapshotJson),
+        FfiConverterTypeAiLang.lower(lang),$0
+    )
+})
+}
+/**
+ * Gọi một lượt LLM local (OpenAI-compat: Ollama /v1, `fm serve`).
+ * HÀM CHẶN: nền tảng gọi ngoài luồng UI. Không retry (worker lo).
+ */
+public func netLlmCall(baseUrl: String, model: String, system: String, user: String, timeoutSecs: UInt64)throws  -> String {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeFfiAiError.lift) {
+    uniffi_aiassist_core_fn_func_net_llm_call(
+        FfiConverterString.lower(baseUrl),
+        FfiConverterString.lower(model),
+        FfiConverterString.lower(system),
+        FfiConverterString.lower(user),
+        FfiConverterUInt64.lower(timeoutSecs),$0
+    )
+})
+}
+/**
+ * System prompt cho LLM hiệu đính verdict mạng.
+ */
+public func netLlmSystemPrompt(lang: AiLang) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_aiassist_core_fn_func_net_llm_system_prompt(
+        FfiConverterTypeAiLang.lower(lang),$0
+    )
+})
+}
+/**
+ * Dựng input LLM từ verdict JSON (bọc DATA, chống injection).
+ */
+public func netLlmUserPrompt(verdictJson: String, lang: AiLang) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_aiassist_core_fn_func_net_llm_user_prompt(
+        FfiConverterString.lower(verdictJson),
+        FfiConverterTypeAiLang.lower(lang),$0
+    )
+})
+}
+/**
+ * Verdict này có cần LLM on-device hiệu đính không.
+ */
+public func netNeedsLlm(verdictJson: String) -> Bool {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_aiassist_core_fn_func_net_needs_llm(
+        FfiConverterString.lower(verdictJson),$0
+    )
+})
+}
+/**
  * Che PII. Backend AI chỉ nhận đầu ra của hàm này.
  */
 public func redactText(text: String) -> String {
@@ -1572,6 +1630,21 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aiassist_core_checksum_func_moderate_rule() != 33042) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aiassist_core_checksum_func_net_evaluate() != 28638) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aiassist_core_checksum_func_net_llm_call() != 21277) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aiassist_core_checksum_func_net_llm_system_prompt() != 59908) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aiassist_core_checksum_func_net_llm_user_prompt() != 32191) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aiassist_core_checksum_func_net_needs_llm() != 64558) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aiassist_core_checksum_func_redact_text() != 43146) {

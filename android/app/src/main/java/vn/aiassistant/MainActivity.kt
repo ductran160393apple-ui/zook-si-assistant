@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
@@ -101,9 +102,54 @@ fun MainScreen() {
         Button(onClick = {
             activity?.let { ScreenOcrFallback.start(it) }
         }) { Text("Chế độ dự phòng: chia sẻ màn hình + OCR") }
+        NetSection()
         Text("Lịch sử:")
         history.forEach { Text("• $it") }
     }
+}
+
+@Composable
+fun NetSection() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var llmOn by remember { mutableStateOf(TrafficMonitor.llmEnabled) }
+    var baseUrl by remember { mutableStateOf(TrafficMonitor.llmBaseUrl) }
+    var model by remember { mutableStateOf(TrafficMonitor.llmModel) }
+    DisposableEffect(Unit) {
+        TrafficMonitor.onUpdate = { tick += 1 }
+        onDispose { TrafficMonitor.onUpdate = null }
+    }
+    tick.let { }
+    Text("Mạng: ${TrafficMonitor.lastScanText}")
+    TrafficMonitor.last?.let { v ->
+        Text("${v.level} ${v.score}/100 — ${v.reasons.joinToString("; ").ifEmpty { "yên" }}")
+        if (v.top.isNotEmpty()) Text(v.top)
+    }
+    if (TrafficMonitor.llmVerdict.isNotEmpty()) Text("LLM: ${TrafficMonitor.llmVerdict}")
+    Row {
+        Button(onClick = {
+            if (TrafficMonitor.running) TrafficMonitor.stop() else TrafficMonitor.start(ctx)
+            tick += 1
+        }) { Text(if (TrafficMonitor.running) "Dừng giám sát mạng" else "Bật giám sát mạng (60s)") }
+        Button(onClick = { TrafficMonitor.scanNow(ctx) }) { Text("Quét ngay") }
+    }
+    Row {
+        Checkbox(checked = llmOn, onCheckedChange = {
+            llmOn = it
+            TrafficMonitor.llmEnabled = it
+        })
+        Text("Hiệu đính bằng Ollama cục bộ (không cloud)")
+    }
+    TextField(value = baseUrl, onValueChange = {
+        baseUrl = it
+        TrafficMonitor.llmBaseUrl = it.trim()
+    }, label = { Text("Ollama URL") })
+    TextField(value = model, onValueChange = {
+        model = it
+        TrafficMonitor.llmModel = it.trim()
+    }, label = { Text("Model") })
+    Text("Lịch sử mạng:")
+    TrafficMonitor.history.take(10).forEach { Text("• $it") }
 }
 
 private fun onOff(b: Boolean) = if (b) "BẬT" else "TẮT"

@@ -784,6 +784,16 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_aiassist_core_fn_func_moderate_rule(`ruleJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_aiassist_core_fn_func_net_evaluate(`snapshotJson`: RustBuffer.ByValue,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aiassist_core_fn_func_net_llm_call(`baseUrl`: RustBuffer.ByValue,`model`: RustBuffer.ByValue,`system`: RustBuffer.ByValue,`user`: RustBuffer.ByValue,`timeoutSecs`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aiassist_core_fn_func_net_llm_system_prompt(`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aiassist_core_fn_func_net_llm_user_prompt(`verdictJson`: RustBuffer.ByValue,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aiassist_core_fn_func_net_needs_llm(`verdictJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
     fun uniffi_aiassist_core_fn_func_redact_text(`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aiassist_core_fn_func_scan_text(`text`: RustBuffer.ByValue,`appId`: RustBuffer.ByValue,`flags`: RustBuffer.ByValue,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -934,6 +944,16 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aiassist_core_checksum_func_moderate_rule(
     ): Short
+    fun uniffi_aiassist_core_checksum_func_net_evaluate(
+    ): Short
+    fun uniffi_aiassist_core_checksum_func_net_llm_call(
+    ): Short
+    fun uniffi_aiassist_core_checksum_func_net_llm_system_prompt(
+    ): Short
+    fun uniffi_aiassist_core_checksum_func_net_llm_user_prompt(
+    ): Short
+    fun uniffi_aiassist_core_checksum_func_net_needs_llm(
+    ): Short
     fun uniffi_aiassist_core_checksum_func_redact_text(
     ): Short
     fun uniffi_aiassist_core_checksum_func_scan_text(
@@ -997,6 +1017,21 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aiassist_core_checksum_func_moderate_rule() != 33042.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aiassist_core_checksum_func_net_evaluate() != 28638.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aiassist_core_checksum_func_net_llm_call() != 21277.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aiassist_core_checksum_func_net_llm_system_prompt() != 59908.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aiassist_core_checksum_func_net_llm_user_prompt() != 32191.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aiassist_core_checksum_func_net_needs_llm() != 64558.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aiassist_core_checksum_func_redact_text() != 43146.toShort()) {
@@ -1560,11 +1595,13 @@ public object FfiConverterTypeAiTaskKind: FfiConverterRustBuffer<AiTaskKind> {
 sealed class FfiAiException: kotlin.Exception() {
     
     class Failed(
-        
-        val `message`: kotlin.String
+
+        // Vá tay: Kotlin 2.0 cấm `val message` che Throwable.message.
+        // Giữ nguyên layout FFI, chỉ đổi tên trường.
+        val detail: kotlin.String
         ) : FfiAiException() {
         override val message
-            get() = "message=${ `message` }"
+            get() = "message=${ detail }"
     }
     
 
@@ -1595,7 +1632,7 @@ public object FfiConverterTypeFfiAiError : FfiConverterRustBuffer<FfiAiException
             is FfiAiException.Failed -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
                 4UL
-                + FfiConverterString.allocationSize(value.`message`)
+                + FfiConverterString.allocationSize(value.detail)
             )
         }
     }
@@ -1604,7 +1641,7 @@ public object FfiConverterTypeFfiAiError : FfiConverterRustBuffer<FfiAiException
         when(value) {
             is FfiAiException.Failed -> {
                 buf.putInt(1)
-                FfiConverterString.write(value.`message`, buf)
+                FfiConverterString.write(value.detail, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -1825,6 +1862,74 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_moderate_rule(
         FfiConverterString.lower(`ruleJson`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Đánh giá snapshot traffic mạng (JSON) ra verdict + baseline mới.
+         * Không thất bại: JSON hỏng trả {\"error\": ...}, snapshot rỗng trả safe.
+         */ fun `netEvaluate`(`snapshotJson`: kotlin.String, `lang`: AiLang): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_net_evaluate(
+        FfiConverterString.lower(`snapshotJson`),
+        FfiConverterTypeAiLang.lower(`lang`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Gọi một lượt LLM local (OpenAI-compat: Ollama /v1, `fm serve`).
+         * HÀM CHẶN: nền tảng gọi ngoài luồng UI. Không retry (worker lo).
+         */ @Throws(FfiAiException::class) fun `netLlmCall`(`baseUrl`: kotlin.String, `model`: kotlin.String, `system`: kotlin.String, `user`: kotlin.String, `timeoutSecs`: kotlin.ULong): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCallWithError(FfiAiException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_net_llm_call(
+        FfiConverterString.lower(`baseUrl`),
+        FfiConverterString.lower(`model`),
+        FfiConverterString.lower(`system`),
+        FfiConverterString.lower(`user`),
+        FfiConverterULong.lower(`timeoutSecs`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * System prompt cho LLM hiệu đính verdict mạng.
+         */ fun `netLlmSystemPrompt`(`lang`: AiLang): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_net_llm_system_prompt(
+        FfiConverterTypeAiLang.lower(`lang`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Dựng input LLM từ verdict JSON (bọc DATA, chống injection).
+         */ fun `netLlmUserPrompt`(`verdictJson`: kotlin.String, `lang`: AiLang): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_net_llm_user_prompt(
+        FfiConverterString.lower(`verdictJson`),
+        FfiConverterTypeAiLang.lower(`lang`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Verdict này có cần LLM on-device hiệu đính không.
+         */ fun `netNeedsLlm`(`verdictJson`: kotlin.String): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aiassist_core_fn_func_net_needs_llm(
+        FfiConverterString.lower(`verdictJson`),_status)
 }
     )
     }

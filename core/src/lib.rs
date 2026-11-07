@@ -4,6 +4,7 @@
 pub mod backends;
 pub mod entities;
 pub mod learned;
+pub mod netmon;
 pub mod normalize;
 pub mod pii;
 pub mod rules;
@@ -128,6 +129,44 @@ pub fn is_remote_app(app_id: String) -> bool {
 #[uniffi::export]
 pub fn is_bank_app(app_id: String) -> bool {
     rules::is_bank_app(&app_id)
+}
+
+/// Đánh giá snapshot traffic mạng (JSON) ra verdict + baseline mới.
+/// Không thất bại: JSON hỏng trả {"error": ...}, snapshot rỗng trả safe.
+#[uniffi::export]
+pub fn net_evaluate(snapshot_json: String, lang: AiLang) -> String {
+    netmon::evaluate(&snapshot_json, lang)
+}
+
+/// Verdict này có cần LLM on-device hiệu đính không.
+#[uniffi::export]
+pub fn net_needs_llm(verdict_json: String) -> bool {
+    netmon::needs_llm(&verdict_json)
+}
+
+/// System prompt cho LLM hiệu đính verdict mạng.
+#[uniffi::export]
+pub fn net_llm_system_prompt(lang: AiLang) -> String {
+    netmon::llm_system_prompt(lang).to_string()
+}
+
+/// Dựng input LLM từ verdict JSON (bọc DATA, chống injection).
+#[uniffi::export]
+pub fn net_llm_user_prompt(verdict_json: String, lang: AiLang) -> String {
+    netmon::llm_user_prompt(&verdict_json, lang)
+}
+
+/// Gọi một lượt LLM local (OpenAI-compat: Ollama /v1, `fm serve`).
+/// HÀM CHẶN: nền tảng gọi ngoài luồng UI. Không retry (worker lo).
+#[uniffi::export]
+pub fn net_llm_call(
+    base_url: String,
+    model: String,
+    system: String,
+    user: String,
+    timeout_secs: u64,
+) -> Result<String, backends::FfiAiError> {
+    netmon::llm_call(&base_url, &model, &system, &user, timeout_secs)
 }
 
 /// Kiểm duyệt một luật học được (JSON). Trả JSON luật đã chuẩn hóa,

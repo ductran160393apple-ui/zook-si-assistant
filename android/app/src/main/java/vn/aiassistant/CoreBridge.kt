@@ -58,15 +58,19 @@ object CoreBridge {
     /** JSON kho case cho RAG (cache theo mtime, lõi bỏ qua khi rỗng). */
     private var casesCache: Pair<Long, String>? = null
 
-    fun loadCasesJson(ctx: Context): String = try {
-        val f = File(ctx.filesDir, CASES_FILE)
-        if (!f.exists()) return ""
-        val m = f.lastModified()
-        casesCache?.takeIf { it.first == m }?.second?.let { return it }
-        val s = f.readText()
-        casesCache = m to s
-        s
-    } catch (_: Exception) { "" }
+    fun loadCasesJson(ctx: Context): String {
+        try {
+            val f = File(ctx.filesDir, CASES_FILE)
+            if (!f.exists()) return ""
+            val m = f.lastModified()
+            casesCache?.takeIf { it.first == m }?.second?.let { return it }
+            val s = f.readText()
+            casesCache = m to s
+            return s
+        } catch (_: Exception) {
+            return ""
+        }
+    }
 
     fun invalidateCasesCache() { casesCache = null }
 

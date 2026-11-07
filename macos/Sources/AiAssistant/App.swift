@@ -56,6 +56,36 @@ struct AiAssistantApp: App {
             }
             exit(code)
         }
+        // --probe-net: quét traffic thật 2 mẫu cách nhau 2s, chấm bằng lõi.
+        if CommandLine.arguments.contains("--probe-net") {
+            let sem = DispatchSemaphore(value: 0)
+            Task {
+                guard let a1 = NetMonitor.collectApps(), let t1 = NetMonitor.interfaceTotals() else {
+                    print("PROBE-NET: thu thập thất bại"); sem.signal(); return
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard let a2 = NetMonitor.collectApps(), let t2 = NetMonitor.interfaceTotals() else {
+                    print("PROBE-NET: thu thập thất bại"); sem.signal(); return
+                }
+                var apps: [(name: String, rx: UInt64, tx: UInt64)] = []
+                for (name, c) in a2 {
+                    let p = a1[name] ?? (0, 0)
+                    apps.append((name, c.rx >= p.rx ? c.rx - p.rx : c.rx, c.tx >= p.tx ? c.tx - p.tx : c.tx))
+                }
+                let lang: AiLang = s.lang == .en ? .en : .vi
+                let snap = NetMonitor.buildSnapshot(
+                    apps: apps, totalRx: t2.rx >= t1.rx ? t2.rx - t1.rx : t2.rx,
+                    totalTx: t2.tx >= t1.tx ? t2.tx - t1.tx : t2.tx,
+                    windowSecs: 2.0, baseline: "{}"
+                )
+                print("PROBE-NET: \(netEvaluate(snapshotJson: snap, lang: lang))")
+                sem.signal()
+            }
+            while sem.wait(timeout: .now() + 0.1) == .timedOut {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+            }
+            exit(0)
+        }
         // --probe-ai <backend> <task> <model...> <text...>: chạy AI thật qua đúng
         // đường AiRunner (không chụp màn hình). backend: meta/claude/gemini/
         // agy/anthropic; task: summarize/translate/solve/analyze/scamcheck.
@@ -186,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orchestrator.state = state
         Hotkeys.register { [weak self] task in self?.orchestrator.handle(task) }
         if state.autoDetect { orchestrator.monitor.start(state: state, analyzer: orchestrator.analyzer) }
+        orchestrator.netMonitor.start(state: state)
         state.applyLearnAuto()
         LearnStore.load().refreshRulesSummary(state: state)
         setupStatusItem()
@@ -373,6 +404,7 @@ final class Orchestrator {
     var state = AppState.shared
     let monitor = AutoMonitor()
     let analyzer = AutoAnalyzer()
+    let netMonitor = NetMonitor()
 
     func handle(_ task: AiTask) {
         analyzer.manualBusy = true

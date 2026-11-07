@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.svg" width="96" alt="SiAssistant logo">
+</p>
+
 # SiAssistant — Screen-reading AI assistant & scam shield
 
 **Topic:** "A Context-Aware Personal AI Assistant on Smart Devices:
@@ -10,6 +14,8 @@ progress. The app reads on-screen content, warns about scams on-device
 Vietnamese UI.
 
 3-minute demo video: `SiAssistant-demo-3min.mp4` (with `.srt` subtitles).
+
+![SiAssistant — AI Scam Shield and Smart Assistant](thumbnail.png)
 
 > 🌐 **Language:** English (below) · 🇻🇳 Tiếng Việt (nhấn để mở bên dưới)
 
@@ -27,6 +33,8 @@ Giao diện tiếng Việt.
 
 Video demo 3 phút: `SiAssistant-demo-3min.mp4` (kèm phụ đề `.srt`).
 
+![SiAssistant — AI Scam Shield và Smart Assistant](thumbnail.png)
+
 ## Tính năng
 
 - **Chống lừa đảo realtime, offline:** quét chữ trên màn hình mỗi giây,
@@ -39,6 +47,9 @@ Video demo 3 phút: `SiAssistant-demo-3min.mp4` (kèm phụ đề `.srt`).
 - **Tác vụ AI một phím:** tóm tắt, dịch, giải đề, phân tích — luôn kèm
   kiểm tra lừa đảo (FR-13), PII che 2 lớp trước khi rời máy.
 - **5 backend AI** (chọn trong menu, có ghi nhớ) — xem bên dưới.
+- **Giám sát traffic mạng 2 tầng:** lõi Rust quét mỗi 60s (ngưỡng +
+  spike so baseline trượt); verdict khả nghi được LLM cục bộ hiệu đính
+  sau (Ollama, không cloud). Chỉ đếm byte, không host/DNS/payload.
 
 ## Kiến trúc
 
@@ -57,12 +68,14 @@ NSPanel nổi                      nút nổi AI
         ┌──────────────────────────────┐
         │ Lõi Rust (aiassist-core)     │
         │ chấm điểm · PII · luật học   │
-        │ AI backend · kho case        │
+        │ AI backend · kho case · mạng │
         └──────────────────────────────┘
 ```
 
+![Sơ đồ kiến trúc](diagrams/siassitant-architecture.png)
+
 Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (sở hữu module,
-hợp đồng FFI 17 hàm, luồng dữ liệu, ranh giới riêng tư),
+hợp đồng FFI 22 hàm, luồng dữ liệu, ranh giới riêng tư),
 [docs/SCORING_SPEC.md](docs/SCORING_SPEC.md) (nhóm từ khóa, tổ hợp,
 ngưỡng, ví dụ chuẩn), [docs/HACKATHON_DEMO.md](docs/HACKATHON_DEMO.md)
 (kịch bản demo 5 phút + fixtures).
@@ -75,10 +88,11 @@ Hồ sơ dự thi: [docs/SUBMISSION.md](docs/SUBMISSION.md) (mô tả project
   `rules` (từ khóa, thương hiệu, danh sách app), `entities` (trích
   URL/SĐT/STK/email), `normalize` (chuẩn hóa tiếng Việt, Jaccard),
   `pii` (che PII), `learned` (kiểm duyệt luật học), `store` (kho case
-  JSON-stateless), `backends` (prompt, Messages API, lệnh CLI).
+  JSON-stateless), `backends` (prompt, Messages API, lệnh CLI),
+  `netmon` (verdict traffic + prompt LLM hiệu đính).
 - [macos/](macos/) — app menu-bar (SwiftPM, macOS 14+): phím tắt Carbon
   (⌘⇧7/8/9/0, dự phòng ⌃⌥S/T/G/K), panel nổi không cướp focus, cửa sổ
-  debug 3 tab, `--selftest`. Binding Swift sinh vào `macos/Generated/`.
+  debug 4 tab, `--selftest`, `--probe-net`. Binding Swift sinh vào `macos/Generated/`.
 - [android/](android/) — app sideload (API 26+, Compose), đang phát
   triển, chưa test trên thiết bị: debounce 600ms, overlay cảnh báo đỏ,
   nút nổi AI. Binding Kotlin ở `app/src/main/java/aiassist/uniffi/`.
@@ -180,6 +194,10 @@ cd macos && swift test -Xlinker -L$PWD/../target/debug  # parser CLI, model, ver
   bundled with a scam check (FR-13); PII double-redacted before leaving
   the device.
 - **5 AI backends** (menu-selectable, remembered) — see below.
+- **Two-tier network-traffic monitoring:** the Rust core scans every 60s
+  (thresholds + spikes vs a sliding baseline); flagged verdicts are
+  reviewed afterwards by a local LLM (Ollama, never cloud). Byte counts
+  only — no hosts, DNS or payloads.
 
 ## Architecture
 
@@ -200,11 +218,14 @@ Floating NSPanel                 AI floating button
         │ Rust core (aiassist-core)    │
         │ scoring · PII · learned rules│
         │ AI backends · case store     │
+        │ network monitor              │
         └──────────────────────────────┘
 ```
 
+![Architecture diagram](diagrams/siassitant-architecture.png)
+
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (module ownership,
-17-function FFI contract, data flows, privacy boundaries),
+22-function FFI contract, data flows, privacy boundaries),
 [docs/SCORING_SPEC.md](docs/SCORING_SPEC.md) (keyword groups, combos,
 thresholds), [docs/HACKATHON_DEMO.md](docs/HACKATHON_DEMO.md) (5-minute
 demo script + fixtures; the first two docs are in Vietnamese).
@@ -218,10 +239,10 @@ description + Meta products usage, English and Vietnamese).
   email extraction), `normalize` (Vietnamese normalization, Jaccard),
   `pii` (redaction), `learned` (learned-rule moderation), `store`
   (JSON-stateless case store), `backends` (prompts, Messages API, CLI
-  commands).
+  commands), `netmon` (traffic verdicts + review-LLM prompts).
 - [macos/](macos/) — menu-bar app (SwiftPM, macOS 14+): Carbon hotkeys
   (⌘⇧7/8/9/0, fallback ⌃⌥S/T/G/K), focus-stealing-free floating panel,
-  3-tab debug window, `--selftest`. Swift bindings generated into
+  4-tab debug window, `--selftest`, `--probe-net`. Swift bindings generated into
   `macos/Generated/`.
 - [android/](android/) — sideload app (API 26+, Compose), in progress
   and not yet device-tested: 600ms debounce, red alert overlay, AI

@@ -343,7 +343,7 @@ pub fn system_prompt(task: AiTaskKind) -> String {
     task.system_prompt().to_string()
 }
 
-fn http_client(timeout: Duration) -> Result<reqwest::blocking::Client, AiError> {
+pub(crate) fn http_client(timeout: Duration) -> Result<reqwest::blocking::Client, AiError> {
     reqwest::blocking::Client::builder()
         .timeout(timeout)
         .build()
